@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -76,20 +77,38 @@ fun removeOne(c:List<CartLine>,p:Product):List<CartLine>{val x=c.toMutableList()
 fun Home(ps:List<Product>,search:String,setSearch:(String)->Unit,seller:()->Unit,add:(Product)->Unit,m:Modifier){
     LazyColumn(modifier=m.fillMaxSize().background(Color(0xFFF8F8FB)),contentPadding=PaddingValues(bottom=20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
         item {
-            Box(modifier=Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF7B2FF7),Color(0xFFFF4E91),Color(0xFFFFA726)))).padding(20.dp)){
+            Box(modifier=Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF6A1B9A),Color(0xFF8E24AA),Color(0xFFFF5C8A),Color(0xFFFFA726)))).padding(horizontal=20.dp,vertical=18.dp)){
                 Column {
-                    Text("Selamat datang 👋",color=Color.White,style=MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(4.dp))
-                    Text("Cari barang local Brunei yang best!",color=Color.White,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.headlineSmall)
+                    Row(verticalAlignment=Alignment.CenterVertically){
+                        Box(
+                            modifier=Modifier.size(58.dp).clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha=0.18f)),
+                            contentAlignment=Alignment.Center
+                        ){
+                            Box(
+                                modifier=Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Color.White),
+                                contentAlignment=Alignment.Center
+                            ){
+                                Text("K",fontWeight=FontWeight.Black,color=Color(0xFF7B2FF7),style=MaterialTheme.typography.headlineMedium)
+                            }
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)){
+                            Text("KadaiKu Brunei",color=Color.White,fontWeight=FontWeight.ExtraBold,style=MaterialTheme.typography.headlineSmall)
+                            Text("Marketplace local kitani 🇧🇳",color=Color.White.copy(alpha=0.9f),style=MaterialTheme.typography.bodyMedium)
+                        }
+                    }
                     Spacer(Modifier.height(14.dp))
-                    Card(colors=CardDefaults.cardColors(containerColor=Color.White),shape=RoundedCornerShape(18.dp)){ SearchBox(search,setSearch) }
+                    Text("Cari barang yang kita mau",color=Color.White,fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    SearchBox(search,setSearch)
                 }
             }
         }
         item { Column(Modifier.padding(horizontal=16.dp)){ Text("Kategori Popular",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Spacer(Modifier.height(10.dp));Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){ CategoryCard("🍔","Makanan",Color(0xFFFFE0B2),Modifier.weight(1f));CategoryCard("👕","Fashion",Color(0xFFD1C4E9),Modifier.weight(1f));CategoryCard("💄","Beauty",Color(0xFFFFCDD2),Modifier.weight(1f));CategoryCard("🏠","Rumah",Color(0xFFC8E6C9),Modifier.weight(1f)) } } }
         item { Card(modifier=Modifier.padding(horizontal=16.dp).fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=Color(0xFF1E88E5)),shape=RoundedCornerShape(22.dp)){ Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically){ Column(Modifier.weight(1f)){Text("PROMO HARI ANI 🎉",color=Color.White,fontWeight=FontWeight.ExtraBold);Spacer(Modifier.height(4.dp));Text("Support local seller & discover barang menarik dekat kitani.",color=Color.White)};Text("🇧🇳",style=MaterialTheme.typography.headlineMedium) } } }
         item { Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){ Column { Text("Barang Berdekatan",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text("Pilihan seller sekitar Brunei",style=MaterialTheme.typography.bodySmall,color=Color.Gray) };FilledTonalButton(onClick=seller){Text("+ Jual")} } }
-        items(ps){ p -> ColorfulProductCard(p,add,Modifier.padding(horizontal=16.dp)) }
+        if(ps.isEmpty()) item { Card(modifier=Modifier.padding(horizontal=16.dp).fillMaxWidth(),shape=RoundedCornerShape(20.dp),colors=CardDefaults.cardColors(containerColor=Color.White)){Column(Modifier.padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally){Text("🔎",style=MaterialTheme.typography.headlineLarge);Spacer(Modifier.height(8.dp));Text("Barang inda jumpa",fontWeight=FontWeight.Bold);Text("Cuba search nama barang, kedai atau kategori lain.",color=Color.Gray)}} }
+        else items(ps){ p -> ColorfulProductCard(p,add,Modifier.padding(horizontal=16.dp)) }
     }
 }
 
@@ -106,9 +125,45 @@ fun ColorfulProductCard(p:Product,add:(Product)->Unit,m:Modifier=Modifier){
     }
 }
 
-@Composable fun SearchPage(ps:List<Product>,q:String,setQ:(String)->Unit,add:(Product)->Unit,m:Modifier){Column(m.padding(16.dp)){Text("Cari barang",style=MaterialTheme.typography.headlineSmall);Spacer(Modifier.height(10.dp));SearchBox(q,setQ);Spacer(Modifier.height(12.dp));ProductList(ps,add)}}
-@Composable fun SearchBox(q:String,setQ:(String)->Unit){OutlinedTextField(value=q,onValueChange=setQ,modifier=Modifier.fillMaxWidth(),singleLine=true,label={Text("Cari barang atau kedai")},shape=RoundedCornerShape(16.dp))}
-@Composable fun ProductList(ps:List<Product>,add:(Product)->Unit){LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)){items(ps){p->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(14.dp),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(p.name,fontWeight=FontWeight.Bold);Text("${p.shop} • ${p.area}");Text(p.category)};Column(horizontalAlignment=Alignment.End){money(p.price);Button(onClick={add(p)}){Text("Tambah")}}}}}}}
+@Composable
+fun SearchPage(ps:List<Product>,q:String,setQ:(String)->Unit,add:(Product)->Unit,m:Modifier){
+    Column(m.fillMaxSize().background(Color(0xFFF8F8FB)).padding(16.dp)){
+        Text("Cari barang",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
+        Text("Search ikut barang, kedai atau kategori",style=MaterialTheme.typography.bodyMedium,color=Color.Gray)
+        Spacer(Modifier.height(12.dp))
+        SearchBox(q,setQ)
+        Spacer(Modifier.height(14.dp))
+        if(ps.isEmpty()){
+            Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(20.dp),colors=CardDefaults.cardColors(containerColor=Color.White)){
+                Column(Modifier.padding(24.dp).fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally){Text("🔍",style=MaterialTheme.typography.headlineLarge);Spacer(Modifier.height(8.dp));Text("Tiada hasil carian",fontWeight=FontWeight.Bold);Text("Cuba keyword lain.",color=Color.Gray)}
+            }
+        } else ProductList(ps,add)
+    }
+}
+
+@Composable
+fun SearchBox(q:String,setQ:(String)->Unit){
+    Surface(shape=RoundedCornerShape(20.dp),color=Color.White,shadowElevation=3.dp,modifier=Modifier.fillMaxWidth()){
+        OutlinedTextField(
+            value=q,
+            onValueChange=setQ,
+            modifier=Modifier.fillMaxWidth(),
+            singleLine=true,
+            placeholder={Text("Search barang, kedai atau kategori...")},
+            leadingIcon={Text("🔎")},
+            trailingIcon={ if(q.isNotBlank()) {{ TextButton(onClick={setQ("")},contentPadding=PaddingValues(horizontal=8.dp)){Text("✕")} }} else null },
+            shape=RoundedCornerShape(20.dp),
+            colors=OutlinedTextFieldDefaults.colors(
+                focusedBorderColor=Color(0xFF7B2FF7),
+                unfocusedBorderColor=Color.Transparent,
+                focusedContainerColor=Color.White,
+                unfocusedContainerColor=Color.White
+            )
+        )
+    }
+}
+
+@Composable fun ProductList(ps:List<Product>,add:(Product)->Unit){LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)){items(ps){p->ColorfulProductCard(p,add)}}}
 
 @Composable fun CartPage(c:List<CartLine>,minus:(Product)->Unit,plus:(Product)->Unit,checkout:(String,Double)->Unit,m:Modifier){var delivery by remember{mutableStateOf("Delivery")};val subtotal=c.sumOf{it.product.price*it.qty};val fee=if(c.isEmpty())0.0 else if(delivery=="Pickup")0.0 else 3.0;Column(m.padding(16.dp)){Text("Troli",style=MaterialTheme.typography.headlineSmall);Spacer(Modifier.height(12.dp));if(c.isEmpty())Text("Troli masih kosong") else {LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)){items(c){x->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(x.product.name,fontWeight=FontWeight.Bold);money(x.product.price)};TextButton(onClick={minus(x.product)}){Text("−")};Text(x.qty.toString());TextButton(onClick={plus(x.product)}){Text("+")}}}}};Spacer(Modifier.height(8.dp));Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(selected=delivery=="Delivery",onClick={delivery="Delivery"},label={Text("Delivery B$3")});FilterChip(selected=delivery=="Pickup",onClick={delivery="Pickup"},label={Text("Pickup")})};Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Jumlah",fontWeight=FontWeight.Bold);money(subtotal+fee)};Button(onClick={if(c.isNotEmpty())checkout(delivery,subtotal+fee)},modifier=Modifier.fillMaxWidth()){Text("Place Order")}}}}
 
@@ -140,46 +195,26 @@ fun LiveOrderCard(order:Order){
     }
 }
 
-fun isSameWeek(time:Long, now:Long=System.currentTimeMillis()):Boolean{
-    val a=Calendar.getInstance().apply{timeInMillis=time};val b=Calendar.getInstance().apply{timeInMillis=now}
-    return a.get(Calendar.WEEK_OF_YEAR)==b.get(Calendar.WEEK_OF_YEAR) && a.get(Calendar.YEAR)==b.get(Calendar.YEAR)
-}
-fun isSameMonth(time:Long, now:Long=System.currentTimeMillis()):Boolean{
-    val a=Calendar.getInstance().apply{timeInMillis=time};val b=Calendar.getInstance().apply{timeInMillis=now}
-    return a.get(Calendar.MONTH)==b.get(Calendar.MONTH) && a.get(Calendar.YEAR)==b.get(Calendar.YEAR)
-}
-fun isSameYear(time:Long, now:Long=System.currentTimeMillis()):Boolean{
-    val a=Calendar.getInstance().apply{timeInMillis=time};val b=Calendar.getInstance().apply{timeInMillis=now}
-    return a.get(Calendar.YEAR)==b.get(Calendar.YEAR)
-}
-
-@Composable
-fun SellerStatCard(title:String,orders:Int,sales:Double,bg:Color,m:Modifier=Modifier){
-    Card(modifier=m,colors=CardDefaults.cardColors(containerColor=bg),shape=RoundedCornerShape(20.dp)){
-        Column(Modifier.padding(14.dp)){Text(title,fontWeight=FontWeight.Bold);Spacer(Modifier.height(5.dp));Text("$orders orders",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.ExtraBold);Text("B$%.2f".format(sales),fontWeight=FontWeight.Bold,color=Color(0xFF1B5E20))}
-    }
-}
+fun startOfWeek(now:Long):Long{ val c=Calendar.getInstance().apply{timeInMillis=now;set(Calendar.DAY_OF_WEEK,firstDayOfWeek);set(Calendar.HOUR_OF_DAY,0);set(Calendar.MINUTE,0);set(Calendar.SECOND,0);set(Calendar.MILLISECOND,0)};return c.timeInMillis }
+fun startOfMonth(now:Long):Long{ val c=Calendar.getInstance().apply{timeInMillis=now;set(Calendar.DAY_OF_MONTH,1);set(Calendar.HOUR_OF_DAY,0);set(Calendar.MINUTE,0);set(Calendar.SECOND,0);set(Calendar.MILLISECOND,0)};return c.timeInMillis }
+fun startOfYear(now:Long):Long{ val c=Calendar.getInstance().apply{timeInMillis=now;set(Calendar.DAY_OF_YEAR,1);set(Calendar.HOUR_OF_DAY,0);set(Calendar.MINUTE,0);set(Calendar.SECOND,0);set(Calendar.MILLISECOND,0)};return c.timeInMillis }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SellerSheet(onClose:()->Unit,onAdd:()->Unit,products:List<Product>,orders:List<Order>,onDelete:(String)->Unit){
-    val weekOrders=orders.filter{isSameWeek(it.createdAt)}
-    val monthOrders=orders.filter{isSameMonth(it.createdAt)}
-    val yearOrders=orders.filter{isSameYear(it.createdAt)}
-    ModalBottomSheet(onDismissRequest=onClose){
-        LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-            item { Text("Seller Dashboard",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Kedai Saya",color=Color.Gray) }
-            item { Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){ SellerStatCard("Minggu",weekOrders.size,weekOrders.sumOf{it.total},Color(0xFFEDE7F6),Modifier.weight(1f));SellerStatCard("Bulan",monthOrders.size,monthOrders.sumOf{it.total},Color(0xFFE3F2FD),Modifier.weight(1f));SellerStatCard("Tahun",yearOrders.size,yearOrders.sumOf{it.total},Color(0xFFE8F5E9),Modifier.weight(1f)) } }
-            item { Card(colors=CardDefaults.cardColors(containerColor=Color(0xFFFFF3E0)),shape=RoundedCornerShape(20.dp),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text("Total Semua Sales",fontWeight=FontWeight.Bold);Text("B$%.2f".format(orders.sumOf{it.total}),style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.ExtraBold);Text("${orders.size} total orders",color=Color.Gray)}} }
-            item { Button(onClick=onAdd,modifier=Modifier.fillMaxWidth()){Text("+ Tambah Produk")} }
-            item { Text("Recent Orders",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold) }
-            if(orders.isEmpty()) item { Text("Belum ada order") } else items(orders.sortedByDescending{it.createdAt}.take(5)){o->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("Order #${o.id}",fontWeight=FontWeight.Bold);Text("${o.lines.sumOf{it.qty}} item • ${o.delivery}",color=Color.Gray)};Text("B$%.2f".format(o.total),fontWeight=FontWeight.Bold)}}}
-            item { Text("Produk Saya",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold) }
-            val mine=products.filter{it.shop=="Kedai Saya"}
-            if(mine.isEmpty()) item { Text("Belum ada produk sendiri") } else items(mine){p->Row(Modifier.fillMaxWidth().padding(vertical=6.dp),verticalAlignment=Alignment.CenterVertically){Text(p.name,Modifier.weight(1f));Text("B$%.2f".format(p.price),fontWeight=FontWeight.Bold);TextButton(onClick={onDelete(p.id)}){Text("Padam")}}}
-            item { Spacer(Modifier.height(24.dp)) }
-        }
-    }
+@Composable fun SellerSheet(onClose:()->Unit,onAdd:()->Unit,products:List<Product>,orders:List<Order>,onDelete:(String)->Unit){
+    val now=System.currentTimeMillis();val weekOrders=orders.filter{it.createdAt>=startOfWeek(now)};val monthOrders=orders.filter{it.createdAt>=startOfMonth(now)};val yearOrders=orders.filter{it.createdAt>=startOfYear(now)}
+    ModalBottomSheet(onDismissRequest=onClose){LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+        item { Text("Seller Dashboard",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Kedai Saya",color=Color(0xFF6A1B9A),fontWeight=FontWeight.SemiBold) }
+        item { Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){SellerStatCard("Minggu",weekOrders.size,weekOrders.sumOf{it.total},Color(0xFFEDE7F6),Modifier.weight(1f));SellerStatCard("Bulan",monthOrders.size,monthOrders.sumOf{it.total},Color(0xFFE3F2FD),Modifier.weight(1f));SellerStatCard("Tahun",yearOrders.size,yearOrders.sumOf{it.total},Color(0xFFE8F5E9),Modifier.weight(1f))} }
+        item { Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp),colors=CardDefaults.cardColors(containerColor=Color(0xFFFFF3E0))){Row(Modifier.padding(16.dp).fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column{Text("Total Semua Sales",fontWeight=FontWeight.Bold);Text("${orders.size} order",color=Color.Gray)};Text("B$%.2f".format(orders.sumOf{it.total}),fontWeight=FontWeight.ExtraBold,color=Color(0xFFE65100),style=MaterialTheme.typography.titleLarge)}} }
+        item { Button(onClick=onAdd,modifier=Modifier.fillMaxWidth()){Text("+ Tambah Produk")} }
+        item { Text("Recent Orders",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold) }
+        if(orders.isEmpty()) item { Text("Belum ada order masuk",color=Color.Gray) } else items(orders.reversed().take(5)){o->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("Order #${o.id}",fontWeight=FontWeight.Bold);Text("${o.lines.sumOf{it.qty}} item • ${o.delivery}",color=Color.Gray)};Text("B$%.2f".format(o.total),fontWeight=FontWeight.Bold)}}}
+        item { Text("Produk Saya",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold) }
+        val mine=products.filter{it.shop=="Kedai Saya"};if(mine.isEmpty()) item{Text("Belum ada produk seller",color=Color.Gray)} else items(mine){p->Row(Modifier.fillMaxWidth().padding(vertical=4.dp),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(p.name,fontWeight=FontWeight.SemiBold);Text("B$%.2f".format(p.price),color=Color.Gray)};TextButton(onClick={onDelete(p.id)}){Text("Padam")}}}
+        item { Spacer(Modifier.height(20.dp)) }
+    }}
 }
+
+@Composable fun SellerStatCard(label:String,count:Int,sales:Double,bg:Color,m:Modifier=Modifier){Card(modifier=m,shape=RoundedCornerShape(18.dp),colors=CardDefaults.cardColors(containerColor=bg)){Column(Modifier.padding(12.dp)){Text(label,fontWeight=FontWeight.Bold);Text("$count order",style=MaterialTheme.typography.bodySmall);Spacer(Modifier.height(4.dp));Text("B$%.2f".format(sales),fontWeight=FontWeight.ExtraBold)}}}
 
 @Composable fun AddProductDialog(onDismiss:()->Unit,onSave:(String,Double,String,String)->Unit){var n by remember{mutableStateOf("")};var pr by remember{mutableStateOf("")};var cat by remember{mutableStateOf("Makanan")};var area by remember{mutableStateOf("Gadong")};AlertDialog(onDismissRequest=onDismiss,title={Text("Tambah Produk")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(n,{n=it},label={Text("Nama produk")});OutlinedTextField(pr,{pr=it},label={Text("Harga B$")});OutlinedTextField(cat,{cat=it},label={Text("Kategori")});OutlinedTextField(area,{area=it},label={Text("Kawasan")})}},confirmButton={Button(enabled=n.isNotBlank()&&pr.toDoubleOrNull()!=null,onClick={onSave(n,pr.toDouble(),cat,area)}){Text("Simpan")}},dismissButton={TextButton(onClick=onDismiss){Text("Batal")}})}
