@@ -34,6 +34,8 @@ data class Order(
     val id:String=UUID.randomUUID().toString().take(8).uppercase(),
     val lines:List<CartLine>,
     val delivery:String,
+    val district:String="",
+    val deliveryFee:Double=0.0,
     val total:Double,
     val runnerName:String="",
     val runnerPhone:String="",
@@ -68,10 +70,10 @@ class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:
         when(tab){
             0->Home(filtered,search,{search=it},{showSeller=true},{p->cart=addCart(cart,p)},{selectedProduct=it},Modifier.padding(pad))
             1->SearchPage(filtered,search,{search=it},{p->cart=addCart(cart,p)},{selectedProduct=it},Modifier.padding(pad))
-            2->CartPage(cart,{p->cart=removeOne(cart,p)},{p->cart=addCart(cart,p)},{delivery,total->
+            2->CartPage(cart,{p->cart=removeOne(cart,p)},{p->cart=addCart(cart,p)},{delivery,district,fee,total->
                 if(cart.isNotEmpty()){
                     val runner=if(delivery=="Pickup") Pair("","") else assignMarketplaceRunner()
-                    orders=orders+Order(lines=cart.map{it.copy()},delivery=delivery,total=total,runnerName=runner.first,runnerPhone=runner.second)
+                    orders=orders+Order(lines=cart.map{it.copy()},delivery=delivery,district=district,deliveryFee=fee,total=total,runnerName=runner.first,runnerPhone=runner.second)
                     cart=listOf();tab=3
                 }
             },Modifier.padding(pad))
@@ -87,6 +89,7 @@ fun assignMarketplaceRunner():Pair<String,String>{
     val runners=listOf(Pair("Hakim","+673 7XX 1010"),Pair("Faris","+673 8XX 2020"),Pair("Azim","+673 7XX 3030"),Pair("Rizal","+673 8XX 4040"))
     return runners.random()
 }
+fun deliveryFeeFor(district:String):Double=when(district){"Brunei-Muara"->3.0;"Tutong"->5.0;"Kuala Belait"->6.0;"Temburong"->8.0;else->3.0}
 fun addCart(c:List<CartLine>,p:Product):List<CartLine>{val x=c.toMutableList();val i=x.indexOfFirst{it.product.id==p.id};if(i>=0)x[i]=x[i].copy(qty=x[i].qty+1)else x.add(CartLine(p,1));return x}
 fun removeOne(c:List<CartLine>,p:Product):List<CartLine>{val x=c.toMutableList();val i=x.indexOfFirst{it.product.id==p.id};if(i>=0){if(x[i].qty>1)x[i]=x[i].copy(qty=x[i].qty-1)else x.removeAt(i)};return x}
 
@@ -111,11 +114,63 @@ fun removeOne(c:List<CartLine>,p:Product):List<CartLine>{val x=c.toMutableList()
 @Composable fun SearchBox(q:String,setQ:(String)->Unit){Surface(shape=RoundedCornerShape(20.dp),color=Color.White,shadowElevation=3.dp,modifier=Modifier.fillMaxWidth()){OutlinedTextField(value=q,onValueChange=setQ,modifier=Modifier.fillMaxWidth(),singleLine=true,placeholder={Text("Search barang, kedai atau kategori...")},leadingIcon={Text("🔎")},trailingIcon=if(q.isNotBlank()){{TextButton(onClick={setQ("")}){Text("✕")}}}else null,shape=RoundedCornerShape(20.dp))}}
 @Composable fun ProductList(ps:List<Product>,add:(Product)->Unit,view:(Product)->Unit){LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)){items(ps){p->ColorfulProductCard(p,add,view)}}}
 
-@Composable fun CartPage(c:List<CartLine>,minus:(Product)->Unit,plus:(Product)->Unit,checkout:(String,Double)->Unit,m:Modifier){var delivery by remember{mutableStateOf("Delivery")};val subtotal=c.sumOf{it.product.price*it.qty};val fee=if(c.isEmpty())0.0 else if(delivery=="Pickup")0.0 else 3.0;Column(m.padding(16.dp)){Text("Troli",style=MaterialTheme.typography.headlineSmall);Spacer(Modifier.height(12.dp));if(c.isEmpty())Text("Troli masih kosong")else{LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)){items(c){x->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){ProductImage(x.product.image,Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)));Spacer(Modifier.width(10.dp));Column(Modifier.weight(1f)){Text(x.product.name,fontWeight=FontWeight.Bold);money(x.product.price)};TextButton(onClick={minus(x.product)}){Text("−")};Text(x.qty.toString());TextButton(onClick={plus(x.product)}){Text("+")}}}}};Spacer(Modifier.height(8.dp));Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(selected=delivery=="Delivery",onClick={delivery="Delivery"},label={Text("Delivery B$3")});FilterChip(selected=delivery=="Pickup",onClick={delivery="Pickup"},label={Text("Pickup")})};Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Jumlah",fontWeight=FontWeight.Bold);money(subtotal+fee)};Button(onClick={checkout(delivery,subtotal+fee)},modifier=Modifier.fillMaxWidth()){Text("Place Order")}}}}
+@Composable
+fun CartPage(c:List<CartLine>,minus:(Product)->Unit,plus:(Product)->Unit,checkout:(String,String,Double,Double)->Unit,m:Modifier){
+    var delivery by remember{mutableStateOf("Delivery")}
+    var district by remember{mutableStateOf("Brunei-Muara")}
+    val subtotal=c.sumOf{it.product.price*it.qty}
+    val fee=if(c.isEmpty()||delivery=="Pickup")0.0 else deliveryFeeFor(district)
+    Column(m.padding(16.dp)){
+        Text("Troli",style=MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(12.dp))
+        if(c.isEmpty()){
+            Text("Troli masih kosong")
+        }else{
+            LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)){
+                items(c){x->
+                    Card(Modifier.fillMaxWidth()){
+                        Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){
+                            ProductImage(x.product.image,Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)))
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)){Text(x.product.name,fontWeight=FontWeight.Bold);money(x.product.price)}
+                            TextButton(onClick={minus(x.product)}){Text("−")}
+                            Text(x.qty.toString())
+                            TextButton(onClick={plus(x.product)}){Text("+")}
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                FilterChip(selected=delivery=="Delivery",onClick={delivery="Delivery"},label={Text("Delivery")})
+                FilterChip(selected=delivery=="Pickup",onClick={delivery="Pickup"},label={Text("Pickup")})
+            }
+            if(delivery=="Delivery"){
+                Spacer(Modifier.height(8.dp))
+                Text("Pilih district delivery",fontWeight=FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
+                    FilterChip(selected=district=="Brunei-Muara",onClick={district="Brunei-Muara"},label={Text("B-Muara B$3")})
+                    FilterChip(selected=district=="Tutong",onClick={district="Tutong"},label={Text("Tutong B$5")})
+                }
+                Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
+                    FilterChip(selected=district=="Kuala Belait",onClick={district="Kuala Belait"},label={Text("KB B$6")})
+                    FilterChip(selected=district=="Temburong",onClick={district="Temburong"},label={Text("Temburong B$8")})
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Subtotal");money(subtotal)}
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(if(delivery=="Pickup")"Pickup fee" else "Delivery ${district}");money(fee)}
+            HorizontalDivider(Modifier.padding(vertical=8.dp))
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Jumlah",fontWeight=FontWeight.Bold);money(subtotal+fee)}
+            Button(onClick={checkout(delivery,if(delivery=="Pickup")"Pickup" else district,fee,subtotal+fee)},modifier=Modifier.fillMaxWidth()){Text("Place Order")}
+        }
+    }
+}
 
 @Composable fun ProfilePage(orders:List<Order>,seller:()->Unit,m:Modifier){LazyColumn(modifier=m.fillMaxSize().background(Color(0xFFF8F8FB)),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){item{Text("Akaun",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)};item{Button(onClick=seller,modifier=Modifier.fillMaxWidth()){Text("🏪 Seller Mode")}};item{Text("Pesanan Saya",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)};if(orders.isEmpty())item{Text("Belum ada pesanan")}else items(orders.reversed()){order->LiveOrderCard(order)}}}
 
-@Composable fun LiveOrderCard(order:Order){var stage by remember(order.id){mutableIntStateOf(0)};var showTracking by remember(order.id){mutableStateOf(false)};val stages=if(order.delivery=="Pickup")listOf("Order diterima","Sedang disediakan","Sedia untuk pickup","Selesai")else listOf("Order diterima","Seller menyiapkan barang","Runner collect semua seller","Dalam perjalanan","Sampai");LaunchedEffect(order.id){while(stage<stages.lastIndex){delay(7000);stage++}};val sellerGroups=order.lines.groupBy{it.product.shop};Card(shape=RoundedCornerShape(22.dp),colors=CardDefaults.cardColors(containerColor=Color.White),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text("Order #${order.id}",fontWeight=FontWeight.Bold);Text(stages[stage],fontWeight=FontWeight.ExtraBold,color=Color(0xFF6A1B9A));Spacer(Modifier.height(8.dp));LinearProgressIndicator(progress={(stage+1).toFloat()/stages.size.toFloat()},modifier=Modifier.fillMaxWidth());Spacer(Modifier.height(10.dp));Text("B$%.2f".format(order.total),fontWeight=FontWeight.Bold);Spacer(Modifier.height(8.dp));Text("Pickup seller (${sellerGroups.size})",fontWeight=FontWeight.Bold);sellerGroups.forEach{(shop,lines)->Text("• $shop — ${lines.sumOf{it.qty}} item")};if(order.delivery!="Pickup"){Spacer(Modifier.height(10.dp));Text("Runner KadaiKu",fontWeight=FontWeight.Bold);Text("🛵 ${order.runnerName}");Text("📞 ${order.runnerPhone}")};OutlinedButton(onClick={showTracking=!showTracking},modifier=Modifier.fillMaxWidth()){Text(if(showTracking)"Tutup Tracking" else "📍 Live Tracking")};if(showTracking){Text(if(order.delivery=="Pickup")"Pickup order — tiada runner delivery." else "${order.runnerName} akan collect dari ${sellerGroups.size} seller sebelum menghantar ke buyer.",color=Color.Gray)}}}}
+@Composable fun LiveOrderCard(order:Order){var stage by remember(order.id){mutableIntStateOf(0)};var showTracking by remember(order.id){mutableStateOf(false)};val stages=if(order.delivery=="Pickup")listOf("Order diterima","Sedang disediakan","Sedia untuk pickup","Selesai")else listOf("Order diterima","Seller menyiapkan barang","Runner collect semua seller","Dalam perjalanan","Sampai");LaunchedEffect(order.id){while(stage<stages.lastIndex){delay(7000);stage++}};val sellerGroups=order.lines.groupBy{it.product.shop};Card(shape=RoundedCornerShape(22.dp),colors=CardDefaults.cardColors(containerColor=Color.White),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text("Order #${order.id}",fontWeight=FontWeight.Bold);Text(stages[stage],fontWeight=FontWeight.ExtraBold,color=Color(0xFF6A1B9A));Spacer(Modifier.height(8.dp));LinearProgressIndicator(progress={(stage+1).toFloat()/stages.size.toFloat()},modifier=Modifier.fillMaxWidth());Spacer(Modifier.height(10.dp));Text("B$%.2f".format(order.total),fontWeight=FontWeight.Bold);Text(if(order.delivery=="Pickup")"Pickup" else "Delivery: ${order.district} • B$%.2f".format(order.deliveryFee),color=Color.Gray);Spacer(Modifier.height(8.dp));Text("Pickup seller (${sellerGroups.size})",fontWeight=FontWeight.Bold);sellerGroups.forEach{(shop,lines)->Text("• $shop — ${lines.sumOf{it.qty}} item")};if(order.delivery!="Pickup"){Spacer(Modifier.height(10.dp));Text("Runner KadaiKu",fontWeight=FontWeight.Bold);Text("🛵 ${order.runnerName}");Text("📞 ${order.runnerPhone}")};OutlinedButton(onClick={showTracking=!showTracking},modifier=Modifier.fillMaxWidth()){Text(if(showTracking)"Tutup Tracking" else "📍 Live Tracking")};if(showTracking){Text(if(order.delivery=="Pickup")"Pickup order — tiada runner delivery." else "${order.runnerName} akan collect dari ${sellerGroups.size} seller sebelum menghantar ke ${order.district}.",color=Color.Gray)}}}}
 
 fun startOfWeek(now:Long):Long{val c=Calendar.getInstance().apply{timeInMillis=now;set(Calendar.DAY_OF_WEEK,firstDayOfWeek);set(Calendar.HOUR_OF_DAY,0);set(Calendar.MINUTE,0);set(Calendar.SECOND,0);set(Calendar.MILLISECOND,0)};return c.timeInMillis}
 fun startOfMonth(now:Long):Long{val c=Calendar.getInstance().apply{timeInMillis=now;set(Calendar.DAY_OF_MONTH,1);set(Calendar.HOUR_OF_DAY,0);set(Calendar.MINUTE,0);set(Calendar.SECOND,0);set(Calendar.MILLISECOND,0)};return c.timeInMillis}
