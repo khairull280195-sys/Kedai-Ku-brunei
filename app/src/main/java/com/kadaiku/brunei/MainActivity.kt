@@ -144,7 +144,37 @@ fun removeOne(c:List<CartLine>,p:Product):List<CartLine>{val x=c.toMutableList()
 
 @Composable fun ProfilePage(orders:List<Order>,user:UserAccount,seller:()->Unit,logout:()->Unit,m:Modifier){LazyColumn(modifier=m.fillMaxSize().background(Color.White),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){item{Text("Akaun",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=Color(0xFF0D47A1));Text("👤 ${user.username}");Text("Role: ${user.role}",color=Color.Gray)};if(user.role=="Seller")item{Button(onClick=seller,modifier=Modifier.fillMaxWidth()){Text("🏪 Seller Dashboard")}};item{OutlinedButton(onClick=logout,modifier=Modifier.fillMaxWidth()){Text("Logout")}};item{Text("Pesanan Saya",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)};if(orders.isEmpty())item{Text("Belum ada pesanan")};if(orders.isNotEmpty())items(orders.reversed()){order->LiveOrderCard(order)}}}
 
-@Composable fun LiveOrderCard(order:Order){var stage by remember(order.id){mutableIntStateOf(0)};var showTracking by remember(order.id){mutableStateOf(false)};val stages=if(order.delivery=="Pickup")listOf("Order diterima","Sedang disediakan","Sedia untuk pickup","Selesai")else listOf("Order diterima","Seller menyiapkan barang","Runner collect semua seller","Dalam perjalanan","Sampai");LaunchedEffect(order.id){while(stage<stages.lastIndex){delay(7000);stage++}};val sellerGroups=order.lines.groupBy{it.product.shop};Card(shape=RoundedCornerShape(22.dp),colors=CardDefaults.cardColors(containerColor=Color.White),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text("Order #${order.id}",fontWeight=FontWeight.Bold);Text(stages[stage],fontWeight=FontWeight.ExtraBold,color=Color(0xFF1565C0));LinearProgressIndicator(progress={(stage+1).toFloat()/stages.size,modifier=Modifier.fillMaxWidth());Text("B$%.2f".format(order.total),fontWeight=FontWeight.Bold);Text("Payment: ${order.paymentMethod}");Text(if(order.delivery=="Pickup")"Pickup" else "Delivery: ${order.district} • B$%.2f".format(order.deliveryFee),color=Color.Gray);Text("Pickup seller (${sellerGroups.size})",fontWeight=FontWeight.Bold);sellerGroups.forEach{(shop,lines)->Text("• $shop — ${lines.sumOf{it.qty}} item")};if(order.delivery!="Pickup"){Text("Runner KadaiKu",fontWeight=FontWeight.Bold);Text("🛵 ${order.runnerName}");Text("📞 ${order.runnerPhone}")};OutlinedButton(onClick={showTracking=!showTracking},modifier=Modifier.fillMaxWidth()){Text(if(showTracking)"Tutup Tracking" else "📍 Live Tracking")};if(showTracking)Text(if(order.delivery=="Pickup")"Pickup order — tiada runner delivery." else "${order.runnerName} akan collect dari ${sellerGroups.size} seller sebelum menghantar ke ${order.district}.",color=Color.Gray)}}}
+@Composable
+fun LiveOrderCard(order:Order){
+    var stage by remember(order.id){mutableIntStateOf(0)}
+    var showTracking by remember(order.id){mutableStateOf(false)}
+    val stages=if(order.delivery=="Pickup") listOf("Order diterima","Sedang disediakan","Sedia untuk pickup","Selesai") else listOf("Order diterima","Seller menyiapkan barang","Runner collect semua seller","Dalam perjalanan","Sampai")
+    LaunchedEffect(order.id){while(stage<stages.lastIndex){delay(7000);stage++}}
+    val sellerGroups=order.lines.groupBy{it.product.shop}
+    Card(shape=RoundedCornerShape(22.dp),colors=CardDefaults.cardColors(containerColor=Color.White),modifier=Modifier.fillMaxWidth()){
+        Column(Modifier.padding(16.dp)){
+            Text("Order #${order.id}",fontWeight=FontWeight.Bold)
+            Text(stages[stage],fontWeight=FontWeight.ExtraBold,color=Color(0xFF1565C0))
+            LinearProgressIndicator(progress={(stage+1).toFloat()/stages.size.toFloat()},modifier=Modifier.fillMaxWidth())
+            Text("B$%.2f".format(order.total),fontWeight=FontWeight.Bold)
+            Text("Payment: ${order.paymentMethod}")
+            Text(if(order.delivery=="Pickup")"Pickup" else "Delivery: ${order.district} • B$%.2f".format(order.deliveryFee),color=Color.Gray)
+            Text("Pickup seller (${sellerGroups.size})",fontWeight=FontWeight.Bold)
+            sellerGroups.forEach{(shop,lines)->Text("• $shop — ${lines.sumOf{it.qty}} item")}
+            if(order.delivery!="Pickup"){
+                Text("Runner KadaiKu",fontWeight=FontWeight.Bold)
+                Text("🛵 ${order.runnerName}")
+                Text("📞 ${order.runnerPhone}")
+            }
+            OutlinedButton(onClick={showTracking=!showTracking},modifier=Modifier.fillMaxWidth()){
+                Text(if(showTracking)"Tutup Tracking" else "📍 Live Tracking")
+            }
+            if(showTracking){
+                Text(if(order.delivery=="Pickup")"Pickup order — tiada runner delivery." else "${order.runnerName} akan collect dari ${sellerGroups.size} seller sebelum menghantar ke ${order.district}.",color=Color.Gray)
+            }
+        }
+    }
+}
 
 fun startOfWeek(now:Long):Long{val c=Calendar.getInstance().apply{timeInMillis=now;set(Calendar.DAY_OF_WEEK,firstDayOfWeek);set(Calendar.HOUR_OF_DAY,0);set(Calendar.MINUTE,0);set(Calendar.SECOND,0);set(Calendar.MILLISECOND,0)};return c.timeInMillis}
 fun startOfMonth(now:Long):Long{val c=Calendar.getInstance().apply{timeInMillis=now;set(Calendar.DAY_OF_MONTH,1);set(Calendar.HOUR_OF_DAY,0);set(Calendar.MINUTE,0);set(Calendar.SECOND,0);set(Calendar.MILLISECOND,0)};return c.timeInMillis}
