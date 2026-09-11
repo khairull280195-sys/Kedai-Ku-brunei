@@ -3,13 +3,18 @@ package com.kadaiku.brunei
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.util.UUID
@@ -39,8 +44,10 @@ class MainActivity : ComponentActivity() {
     var showSeller by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
     val filtered = products.filter { search.isBlank() || it.name.contains(search,true) || it.shop.contains(search,true) || it.category.contains(search,true) }
-    Scaffold(topBar={CenterAlignedTopAppBar(title={Text("KadaiKu 🇧🇳",fontWeight=FontWeight.Bold)})},
-        bottomBar={NavigationBar { listOf("Home","Search","Cart (${cart.sumOf{it.qty}})","Profile").forEachIndexed{i,l->NavigationBarItem(selected=tab==i,onClick={tab=i},icon={},label={Text(l)})} }}) { pad ->
+    Scaffold(
+        topBar={CenterAlignedTopAppBar(title={Text("KadaiKu 🇧🇳",fontWeight=FontWeight.Bold)})},
+        bottomBar={NavigationBar { listOf("Home","Search","Cart (${cart.sumOf{it.qty}})","Profile").forEachIndexed{i,l->NavigationBarItem(selected=tab==i,onClick={tab=i},icon={},label={Text(l)})} }}
+    ) { pad ->
         when(tab){
             0 -> Home(filtered,search,{search=it},{showSeller=true},{p->cart=addCart(cart,p)},Modifier.padding(pad))
             1 -> SearchPage(filtered,search,{search=it},{p->cart=addCart(cart,p)},Modifier.padding(pad))
@@ -57,9 +64,119 @@ class MainActivity : ComponentActivity() {
 fun addCart(c:List<CartLine>,p:Product):List<CartLine>{val x=c.toMutableList();val i=x.indexOfFirst{it.product.id==p.id};if(i>=0)x[i]=x[i].copy(qty=x[i].qty+1)else x.add(CartLine(p,1));return x}
 fun removeOne(c:List<CartLine>,p:Product):List<CartLine>{val x=c.toMutableList();val i=x.indexOfFirst{it.product.id==p.id};if(i>=0){if(x[i].qty>1)x[i]=x[i].copy(qty=x[i].qty-1)else x.removeAt(i)};return x}
 
-@Composable fun Home(ps:List<Product>,search:String,setSearch:(String)->Unit,seller:()->Unit,add:(Product)->Unit,m:Modifier){Column(m.padding(16.dp)){Text("Selamat datang 👋",style=MaterialTheme.typography.headlineSmall);Spacer(Modifier.height(10.dp));SearchBox(search,setSearch);Spacer(Modifier.height(14.dp));Text("Kategori",style=MaterialTheme.typography.titleLarge);Row(horizontalArrangement=Arrangement.spacedBy(6.dp),modifier=Modifier.fillMaxWidth()){listOf("🍔 Makanan","👕 Fashion","💄 Beauty","🏠 Rumah").forEach{AssistChip(onClick={},label={Text(it)})}};Spacer(Modifier.height(14.dp));Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Barang berdekatan",style=MaterialTheme.typography.titleLarge);TextButton(onClick=seller){Text("Jual barang")}};ProductList(ps,add)}}
+@Composable
+fun Home(ps:List<Product>,search:String,setSearch:(String)->Unit,seller:()->Unit,add:(Product)->Unit,m:Modifier){
+    LazyColumn(
+        modifier=m.fillMaxSize().background(Color(0xFFF8F8FB)),
+        contentPadding=PaddingValues(bottom=20.dp),
+        verticalArrangement=Arrangement.spacedBy(14.dp)
+    ){
+        item {
+            Box(
+                modifier=Modifier.fillMaxWidth().background(
+                    Brush.linearGradient(listOf(Color(0xFF7B2FF7),Color(0xFFFF4E91),Color(0xFFFFA726)))
+                ).padding(20.dp)
+            ){
+                Column {
+                    Text("Selamat datang 👋",color=Color.White,style=MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Cari barang local Brunei yang best!",color=Color.White,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.headlineSmall)
+                    Spacer(Modifier.height(14.dp))
+                    Card(colors=CardDefaults.cardColors(containerColor=Color.White),shape=RoundedCornerShape(18.dp)){
+                        SearchBox(search,setSearch)
+                    }
+                }
+            }
+        }
+
+        item {
+            Column(Modifier.padding(horizontal=16.dp)){
+                Text("Kategori Popular",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                    CategoryCard("🍔","Makanan",Color(0xFFFFE0B2),Modifier.weight(1f))
+                    CategoryCard("👕","Fashion",Color(0xFFD1C4E9),Modifier.weight(1f))
+                    CategoryCard("💄","Beauty",Color(0xFFFFCDD2),Modifier.weight(1f))
+                    CategoryCard("🏠","Rumah",Color(0xFFC8E6C9),Modifier.weight(1f))
+                }
+            }
+        }
+
+        item {
+            Card(
+                modifier=Modifier.padding(horizontal=16.dp).fillMaxWidth(),
+                colors=CardDefaults.cardColors(containerColor=Color(0xFF1E88E5)),
+                shape=RoundedCornerShape(22.dp)
+            ){
+                Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically){
+                    Column(Modifier.weight(1f)){
+                        Text("PROMO HARI ANI 🎉",color=Color.White,fontWeight=FontWeight.ExtraBold)
+                        Spacer(Modifier.height(4.dp))
+                        Text("Support local seller & discover barang menarik dekat kitani.",color=Color.White)
+                    }
+                    Text("🇧🇳",style=MaterialTheme.typography.headlineMedium)
+                }
+            }
+        }
+
+        item {
+            Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
+                Column {
+                    Text("Barang Berdekatan",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
+                    Text("Pilihan seller sekitar Brunei",style=MaterialTheme.typography.bodySmall,color=Color.Gray)
+                }
+                FilledTonalButton(onClick=seller){Text("+ Jual")}
+            }
+        }
+
+        items(ps){ p ->
+            ColorfulProductCard(p,add,Modifier.padding(horizontal=16.dp))
+        }
+    }
+}
+
+@Composable
+fun CategoryCard(icon:String,label:String,bg:Color,m:Modifier=Modifier){
+    Card(modifier=m,colors=CardDefaults.cardColors(containerColor=bg),shape=RoundedCornerShape(18.dp)){
+        Column(Modifier.padding(vertical=14.dp,horizontal=8.dp),horizontalAlignment=Alignment.CenterHorizontally){
+            Text(icon,style=MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(4.dp))
+            Text(label,fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+@Composable
+fun ColorfulProductCard(p:Product,add:(Product)->Unit,m:Modifier=Modifier){
+    val accent=when(p.category.lowercase()){
+        "makanan"->Color(0xFFFFF3E0)
+        "beauty"->Color(0xFFFFEBEE)
+        "fashion"->Color(0xFFEDE7F6)
+        else->Color(0xFFE8F5E9)
+    }
+    Card(modifier=m.fillMaxWidth(),shape=RoundedCornerShape(22.dp),colors=CardDefaults.cardColors(containerColor=Color.White)){
+        Row(Modifier.padding(14.dp),verticalAlignment=Alignment.CenterVertically){
+            Box(
+                modifier=Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(accent),
+                contentAlignment=Alignment.Center
+            ){
+                Text(when(p.category.lowercase()){"makanan"->"🍰";"beauty"->"✨";"fashion"->"👕";else->"🛍️"},style=MaterialTheme.typography.headlineMedium)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)){
+                Text(p.name,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
+                Text(p.shop,color=Color(0xFF6A1B9A),fontWeight=FontWeight.SemiBold)
+                Text("📍 ${p.area}  •  ${p.category}",style=MaterialTheme.typography.bodySmall,color=Color.Gray)
+                Spacer(Modifier.height(5.dp))
+                Text("B$%.2f".format(p.price),fontWeight=FontWeight.ExtraBold,color=Color(0xFFE65100),style=MaterialTheme.typography.titleMedium)
+            }
+            Button(onClick={add(p)},shape=RoundedCornerShape(14.dp)){Text("Tambah")}
+        }
+    }
+}
+
 @Composable fun SearchPage(ps:List<Product>,q:String,setQ:(String)->Unit,add:(Product)->Unit,m:Modifier){Column(m.padding(16.dp)){Text("Cari barang",style=MaterialTheme.typography.headlineSmall);Spacer(Modifier.height(10.dp));SearchBox(q,setQ);Spacer(Modifier.height(12.dp));ProductList(ps,add)}}
-@Composable fun SearchBox(q:String,setQ:(String)->Unit){OutlinedTextField(value=q,onValueChange=setQ,modifier=Modifier.fillMaxWidth(),singleLine=true,label={Text("Cari barang atau kedai")})}
+@Composable fun SearchBox(q:String,setQ:(String)->Unit){OutlinedTextField(value=q,onValueChange=setQ,modifier=Modifier.fillMaxWidth(),singleLine=true,label={Text("Cari barang atau kedai")},shape=RoundedCornerShape(16.dp))}
 @Composable fun ProductList(ps:List<Product>,add:(Product)->Unit){LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)){items(ps){p->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(14.dp),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(p.name,fontWeight=FontWeight.Bold);Text("${p.shop} • ${p.area}");Text(p.category)};Column(horizontalAlignment=Alignment.End){money(p.price);Button(onClick={add(p)}){Text("Tambah")}}}}}}}
 
 @Composable fun CartPage(c:List<CartLine>,minus:(Product)->Unit,plus:(Product)->Unit,checkout:(String,Double)->Unit,m:Modifier){var delivery by remember{mutableStateOf("Delivery")};val subtotal=c.sumOf{it.product.price*it.qty};val fee=if(c.isEmpty())0.0 else if(delivery=="Pickup")0.0 else 3.0;Column(m.padding(16.dp)){Text("Troli",style=MaterialTheme.typography.headlineSmall);Spacer(Modifier.height(12.dp));if(c.isEmpty())Text("Troli masih kosong") else {LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)){items(c){x->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(x.product.name,fontWeight=FontWeight.Bold);money(x.product.price)};TextButton(onClick={minus(x.product)}){Text("−")};Text(x.qty.toString());TextButton(onClick={plus(x.product)}){Text("+")}}}}};Spacer(Modifier.height(8.dp));Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(selected=delivery=="Delivery",onClick={delivery="Delivery"},label={Text("Delivery B$3")});FilterChip(selected=delivery=="Pickup",onClick={delivery="Pickup"},label={Text("Pickup")})};Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Jumlah",fontWeight=FontWeight.Bold);money(subtotal+fee)};Button(onClick={if(c.isNotEmpty())checkout(delivery,subtotal+fee)},modifier=Modifier.fillMaxWidth()){Text("Place Order")}}}}
