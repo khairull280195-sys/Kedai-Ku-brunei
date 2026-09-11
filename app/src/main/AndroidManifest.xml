@@ -1,5 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application android:theme="@style/Theme.KadaiKu" android:label="KadaiKu Brunei">
+    <application
+        android:theme="@style/Theme.KadaiKu"
+        android:label="KadaiKu Brunei"
+        android:icon="@drawable/ic_kadaiku_logo"
+        android:roundIcon="@drawable/ic_kadaiku_logo">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
