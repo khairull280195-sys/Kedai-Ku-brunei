@@ -8,9 +8,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,6 +23,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.delay
@@ -31,12 +35,14 @@ data class UserAccount(val id:String=UUID.randomUUID().toString(),val username:S
 data class SellerProfile(val shop:String,val phone:String,val address:String)
 data class Product(val id:String=UUID.randomUUID().toString(),val name:String,val price:Double,val shop:String,val category:String,val area:String,val image:String,val sellerPhone:String,val sellerAddress:String,val sellerId:String="sample")
 data class CartLine(val product:Product,var qty:Int)
+data class AppNotice(val id:String=UUID.randomUUID().toString(),val target:String,val title:String,val message:String,val createdAt:Long=System.currentTimeMillis())
 data class Order(
     val id:String=UUID.randomUUID().toString().take(8).uppercase(),
     val buyerId:String="",
     val lines:List<CartLine>,
     val delivery:String,
     val district:String="",
+    val deliveryAddress:String="",
     val deliveryFee:Double=0.0,
     val paymentMethod:String="Cash",
     val total:Double,
@@ -53,6 +59,9 @@ class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:
 @Composable fun KadaiKuApp(){
     var accounts by remember{mutableStateOf(listOf<UserAccount>())}
     var currentUser by remember{mutableStateOf<UserAccount?>(null)}
+    var rememberedUsername by remember{mutableStateOf("")}
+    var rememberedPassword by remember{mutableStateOf("")}
+    var rememberLogin by remember{mutableStateOf(false)}
     var showRegister by remember{mutableStateOf(false)}
     var tab by remember{mutableIntStateOf(0)}
     var products by remember{mutableStateOf(listOf(
@@ -63,10 +72,13 @@ class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:
     ))}
     var cart by remember{mutableStateOf(listOf<CartLine>())}
     var orders by remember{mutableStateOf(listOf<Order>())}
+    var notices by remember{mutableStateOf(listOf<AppNotice>())}
     var search by remember{mutableStateOf("")}
     var showSeller by remember{mutableStateOf(false)}
     var showAdd by remember{mutableStateOf(false)}
     var selectedProduct by remember{mutableStateOf<Product?>(null)}
+    var historyOrder by remember{mutableStateOf<Order?>(null)}
+    var showSupport by remember{mutableStateOf(false)}
 
     if(currentUser==null){
         if(showRegister){
@@ -83,7 +95,16 @@ class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:
             )
         }else{
             LoginScreen(
-                onLogin={username,password->accounts.firstOrNull{it.username.equals(username.trim(),true)&&it.password==password}?.let{currentUser=it}},
+                initialUsername=if(rememberLogin)rememberedUsername else "",
+                initialPassword=if(rememberLogin)rememberedPassword else "",
+                initialRemember=rememberLogin,
+                onLogin={username,password,rememberMe->
+                    accounts.firstOrNull{it.username.equals(username.trim(),true)&&it.password==password}?.let{
+                        currentUser=it
+                        rememberLogin=rememberMe
+                        if(rememberMe){rememberedUsername=username.trim();rememberedPassword=password}else{rememberedUsername="";rememberedPassword=""}
+                    }
+                },
                 onRegister={showRegister=true}
             )
         }
@@ -94,11 +115,13 @@ class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:
     val sellerProfile=SellerProfile(user.shop.ifBlank{"Kedai Saya"},user.phone,user.address)
     val filtered=products.filter{search.isBlank()||it.name.contains(search,true)||it.shop.contains(search,true)||it.category.contains(search,true)}
     val buyerOrders=orders.filter{it.buyerId==user.id}
+    val sellerNotices=notices.filter{it.target==user.id}
 
     Scaffold(
         containerColor=Color.White,
         topBar={CenterAlignedTopAppBar(title={Text("KadaiKu 🇧🇳",fontWeight=FontWeight.Bold,color=Color(0xFF0D47A1))},colors=TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor=Color.White))},
-        bottomBar={NavigationBar(containerColor=Color.White){listOf("Home","Search","Cart (${cart.sumOf{it.qty}})","Profile").forEachIndexed{i,l->NavigationBarItem(selected=tab==i,onClick={tab=i},icon={},label={Text(l)},colors=NavigationBarItemDefaults.colors(selectedTextColor=Color(0xFF0D47A1),indicatorColor=Color(0xFFE3F2FD)))}}}
+        bottomBar={NavigationBar(containerColor=Color.White){listOf("Home","Search","Cart (${cart.sumOf{it.qty}})","Profile").forEachIndexed{i,l->NavigationBarItem(selected=tab==i,onClick={tab=i},icon={},label={Text(l)},colors=NavigationBarItemDefaults.colors(selectedTextColor=Color(0xFF0D47A1),indicatorColor=Color(0xFFE3F2FD)))}}},
+        floatingActionButton={FloatingActionButton(onClick={showSupport=true},containerColor=Color(0xFF20C56B),contentColor=Color.White,shape=CircleShape){Text("💬")}}
     ){pad->
         when(tab){
             0->Home(filtered,search,{search=it},{if(user.role=="Seller")showSeller=true},{p->cart=addCart(cart,p)},{selectedProduct=it},Modifier.padding(pad),user.role=="Seller")
@@ -108,10 +131,19 @@ class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:
                 minus={p->cart=removeOne(cart,p)},
                 plus={p->cart=addCart(cart,p)},
                 remove={p->cart=removeItem(cart,p)},
-                checkout={delivery,district,fee,payment,total->
+                checkout={delivery,district,address,fee,payment,total->
                     if(cart.isNotEmpty()){
                         val runner=if(delivery=="Pickup") Pair("","") else assignMarketplaceRunner()
-                        orders=orders+Order(buyerId=user.id,lines=cart.map{it.copy()},delivery=delivery,district=district,deliveryFee=fee,paymentMethod=payment,total=total,runnerName=runner.first,runnerPhone=runner.second)
+                        val order=Order(buyerId=user.id,lines=cart.map{it.copy()},delivery=delivery,district=district,deliveryAddress=address,deliveryFee=fee,paymentMethod=payment,total=total,runnerName=runner.first,runnerPhone=runner.second)
+                        orders=orders+order
+                        val sellerGroups=order.lines.groupBy{it.product.sellerId}
+                        sellerGroups.forEach{(sellerId,lines)->
+                            if(sellerId!="sample") notices=notices+AppNotice(target=sellerId,title="New order #${order.id}",message="Buyer membeli ${lines.sumOf{it.qty}} item. Sediakan barang untuk pickup runner.")
+                        }
+                        if(order.delivery!="Pickup"){
+                            val pickupText=order.lines.distinctBy{it.product.sellerId}.joinToString(" • "){"${it.product.shop}: ${it.product.sellerAddress}"}
+                            notices=notices+AppNotice(target="runner:${order.runnerName}",title="Pickup job #${order.id}",message="Pickup: $pickupText | Deliver: ${order.deliveryAddress.ifBlank{order.district}}")
+                        }
                         cart=listOf();tab=3
                     }
                 },
@@ -120,21 +152,42 @@ class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:
             else->ProfilePage(
                 orders=buyerOrders,
                 user=user,
+                notices=sellerNotices,
                 seller={if(user.role=="Seller")showSeller=true},
                 logout={currentUser=null;cart=listOf();tab=0},
                 markDelivered={orderId->orders=orders.map{o->if(o.id==orderId&&o.deliveredAt==null)o.copy(deliveredAt=System.currentTimeMillis())else o}},
+                openHistory={historyOrder=it},
                 m=Modifier.padding(pad)
             )
         }
     }
     selectedProduct?.let{p->ProductDetailSheet(product=p,onClose={selectedProduct=null},onAdd={cart=addCart(cart,p)})}
+    historyOrder?.let{o->HistoryDetailSheet(order=o,onClose={historyOrder=null})}
+    if(showSupport) CustomerServiceSheet(onClose={showSupport=false})
     if(showSeller&&user.role=="Seller") SellerSheet(onClose={showSeller=false},onAdd={showAdd=true},products=products,orders=orders,profile=sellerProfile,sellerId=user.id,onDelete={id->products=products.filterNot{it.id==id}})
     if(showAdd&&user.role=="Seller") AddProductDialog(sellerProfile=sellerProfile,onDismiss={showAdd=false},onSave={name,price,cat,area,image->products=products+Product(name=name,price=price,shop=sellerProfile.shop.ifBlank{"Kedai Saya"},category=cat,area=area,image=image,sellerPhone=sellerProfile.phone,sellerAddress=sellerProfile.address,sellerId=user.id);showAdd=false})
 }
 
-@Composable fun LoginScreen(onLogin:(String,String)->Unit,onRegister:()->Unit){var u by remember{mutableStateOf("")};var p by remember{mutableStateOf("")};Column(Modifier.fillMaxSize().background(Color.White).padding(24.dp),verticalArrangement=Arrangement.Center){Text("KadaiKu Brunei",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.ExtraBold,color=Color(0xFF0D47A1));Text("Login ke akaun kita",color=Color.Gray);Spacer(Modifier.height(20.dp));OutlinedTextField(u,{u=it},label={Text("Username")},modifier=Modifier.fillMaxWidth());Spacer(Modifier.height(10.dp));OutlinedTextField(p,{p=it},label={Text("Password")},modifier=Modifier.fillMaxWidth());Spacer(Modifier.height(14.dp));Button(onClick={onLogin(u,p)},modifier=Modifier.fillMaxWidth(),enabled=u.isNotBlank()&&p.isNotBlank(),colors=ButtonDefaults.buttonColors(containerColor=Color(0xFF1565C0))){Text("Login")};TextButton(onClick=onRegister,modifier=Modifier.fillMaxWidth()){Text("New user? Register")}}}
+@Composable
+fun LoginScreen(initialUsername:String,initialPassword:String,initialRemember:Boolean,onLogin:(String,String,Boolean)->Unit,onRegister:()->Unit){
+    var u by remember{mutableStateOf(initialUsername)}
+    var p by remember{mutableStateOf(initialPassword)}
+    var showPassword by remember{mutableStateOf(false)}
+    var rememberMe by remember{mutableStateOf(initialRemember)}
+    Column(Modifier.fillMaxSize().background(Color.White).padding(24.dp),verticalArrangement=Arrangement.Center){
+        Text("KadaiKu Brunei",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.ExtraBold,color=Color(0xFF0D47A1));Text("Login ke akaun kita",color=Color.Gray);Spacer(Modifier.height(20.dp))
+        OutlinedTextField(u,{u=it},label={Text("Username")},modifier=Modifier.fillMaxWidth())
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(p,{p=it},label={Text("Password")},modifier=Modifier.fillMaxWidth(),visualTransformation=if(showPassword)VisualTransformation.None else PasswordVisualTransformation(),trailingIcon={TextButton(onClick={showPassword=!showPassword}){Text(if(showPassword)"Hide" else "Show")}})
+        Row(verticalAlignment=Alignment.CenterVertically){Checkbox(checked=rememberMe,onCheckedChange={rememberMe=it});Text("Remember me")}
+        Spacer(Modifier.height(8.dp))
+        Button(onClick={onLogin(u,p,rememberMe)},modifier=Modifier.fillMaxWidth(),enabled=u.isNotBlank()&&p.isNotBlank(),colors=ButtonDefaults.buttonColors(containerColor=Color(0xFF1565C0))){Text("Login")}
+        TextButton(onClick=onRegister,modifier=Modifier.fillMaxWidth()){Text("New user? Register")}
+        Text("Remember Me demo ani tersimpan selagi app process masih hidup. Production nanti perlu secure local storage/backend.",style=MaterialTheme.typography.bodySmall,color=Color.Gray)
+    }
+}
 
-@Composable fun RegisterScreen(onBack:()->Unit,onRegister:(String,String,String,String,String,String)->Unit){var u by remember{mutableStateOf("")};var p by remember{mutableStateOf("")};var role by remember{mutableStateOf("Buyer")};var shop by remember{mutableStateOf("")};var phone by remember{mutableStateOf("")};var address by remember{mutableStateOf("")};LazyColumn(Modifier.fillMaxSize().background(Color.White),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){item{Text("Create Account",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.ExtraBold,color=Color(0xFF0D47A1))};item{OutlinedTextField(u,{u=it},label={Text("Username")},modifier=Modifier.fillMaxWidth())};item{OutlinedTextField(p,{p=it},label={Text("Password")},modifier=Modifier.fillMaxWidth())};item{Text("Account type",fontWeight=FontWeight.Bold);Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(selected=role=="Buyer",onClick={role="Buyer"},label={Text("Buyer")});FilterChip(selected=role=="Seller",onClick={role="Seller"},label={Text("Seller")})}};if(role=="Seller"){item{OutlinedTextField(shop,{shop=it},label={Text("Nama kedai")},modifier=Modifier.fillMaxWidth())};item{OutlinedTextField(phone,{phone=it},label={Text("No. telefon seller")},modifier=Modifier.fillMaxWidth())};item{OutlinedTextField(address,{address=it},label={Text("Alamat kedai")},modifier=Modifier.fillMaxWidth())}};item{Button(onClick={onRegister(u,p,role,shop,phone,address)},modifier=Modifier.fillMaxWidth(),enabled=u.isNotBlank()&&p.length>=4&&(role=="Buyer"||(shop.isNotBlank()&&phone.isNotBlank()&&address.isNotBlank())),colors=ButtonDefaults.buttonColors(containerColor=Color(0xFF1565C0))){Text("Create Account")}};item{TextButton(onClick=onBack,modifier=Modifier.fillMaxWidth()){Text("Back to Login")}};item{Text("Demo local account: data/password belum sync cloud. Untuk production perlu backend authentication.",style=MaterialTheme.typography.bodySmall,color=Color.Gray)}}}
+@Composable fun RegisterScreen(onBack:()->Unit,onRegister:(String,String,String,String,String,String)->Unit){var u by remember{mutableStateOf("")};var p by remember{mutableStateOf("")};var showPassword by remember{mutableStateOf(false)};var role by remember{mutableStateOf("Buyer")};var shop by remember{mutableStateOf("")};var phone by remember{mutableStateOf("")};var address by remember{mutableStateOf("")};LazyColumn(Modifier.fillMaxSize().background(Color.White),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){item{Text("Create Account",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.ExtraBold,color=Color(0xFF0D47A1))};item{OutlinedTextField(u,{u=it},label={Text("Username")},modifier=Modifier.fillMaxWidth())};item{OutlinedTextField(p,{p=it},label={Text("Password")},modifier=Modifier.fillMaxWidth(),visualTransformation=if(showPassword)VisualTransformation.None else PasswordVisualTransformation(),trailingIcon={TextButton(onClick={showPassword=!showPassword}){Text(if(showPassword)"Hide" else "Show")}})};item{Text("Account type",fontWeight=FontWeight.Bold);Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(selected=role=="Buyer",onClick={role="Buyer"},label={Text("Buyer")});FilterChip(selected=role=="Seller",onClick={role="Seller"},label={Text("Seller")})}};if(role=="Seller"){item{OutlinedTextField(shop,{shop=it},label={Text("Nama kedai")},modifier=Modifier.fillMaxWidth())};item{OutlinedTextField(phone,{phone=it},label={Text("No. telefon seller")},modifier=Modifier.fillMaxWidth())};item{OutlinedTextField(address,{address=it},label={Text("Alamat kedai")},modifier=Modifier.fillMaxWidth())}};item{Button(onClick={onRegister(u,p,role,shop,phone,address)},modifier=Modifier.fillMaxWidth(),enabled=u.isNotBlank()&&p.length>=4&&(role=="Buyer"||(shop.isNotBlank()&&phone.isNotBlank()&&address.isNotBlank())),colors=ButtonDefaults.buttonColors(containerColor=Color(0xFF1565C0))){Text("Create Account")}};item{TextButton(onClick=onBack,modifier=Modifier.fillMaxWidth()){Text("Back to Login")}};item{Text("Demo local account: data/password belum sync cloud. Untuk production perlu backend authentication.",style=MaterialTheme.typography.bodySmall,color=Color.Gray)}}}
 
 fun assignMarketplaceRunner():Pair<String,String>{val runners=listOf(Pair("Hakim","+673 7XX 1010"),Pair("Faris","+673 8XX 2020"),Pair("Azim","+673 7XX 3030"),Pair("Rizal","+673 8XX 4040"));return runners.random()}
 fun deliveryFeeFor(district:String):Double=when(district){"Brunei-Muara"->3.0;"Tutong"->5.0;"Kuala Belait"->6.0;"Temburong"->8.0;else->3.0}
@@ -158,175 +211,61 @@ fun sellerOrderValue(order:Order,sellerId:String):Double=order.lines.filter{it.p
 @Composable fun ProductList(ps:List<Product>,add:(Product)->Unit,view:(Product)->Unit){LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)){items(ps){p->ColorfulProductCard(p,add,view)}}}
 
 @Composable
-fun CartPage(c:List<CartLine>,minus:(Product)->Unit,plus:(Product)->Unit,remove:(Product)->Unit,checkout:(String,String,Double,String,Double)->Unit,m:Modifier){
+fun CartPage(c:List<CartLine>,minus:(Product)->Unit,plus:(Product)->Unit,remove:(Product)->Unit,checkout:(String,String,String,Double,String,Double)->Unit,m:Modifier){
     var delivery by remember{mutableStateOf("Delivery")}
     var district by remember{mutableStateOf("Brunei-Muara")}
+    var deliveryAddress by remember{mutableStateOf("")}
     var payment by remember{mutableStateOf("Cash")}
     val subtotal=c.sumOf{it.product.price*it.qty}
     val fee=if(c.isEmpty()||delivery=="Pickup")0.0 else deliveryFeeFor(district)
     Column(m.padding(16.dp)){
-        Text("Troli",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=Color(0xFF0D47A1))
-        Spacer(Modifier.height(12.dp))
+        Text("Troli",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=Color(0xFF0D47A1));Spacer(Modifier.height(12.dp))
         if(c.isEmpty()) Text("Troli masih kosong") else {
-            LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)){
-                items(c){x->
-                    Card(Modifier.fillMaxWidth()){
-                        Column(Modifier.padding(12.dp)){
-                            Row(verticalAlignment=Alignment.CenterVertically){
-                                ProductImage(x.product.image,Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)))
-                                Spacer(Modifier.width(10.dp))
-                                Column(Modifier.weight(1f)){
-                                    Text(x.product.name,fontWeight=FontWeight.Bold)
-                                    money(x.product.price)
-                                }
-                                TextButton(onClick={remove(x.product)}){Text("Remove")}
-                            }
-                            Row(verticalAlignment=Alignment.CenterVertically){
-                                Text("Qty",color=Color.Gray)
-                                Spacer(Modifier.weight(1f))
-                                TextButton(onClick={minus(x.product)}){Text("−")}
-                                Text(x.qty.toString(),fontWeight=FontWeight.Bold)
-                                TextButton(onClick={plus(x.product)}){Text("+")}
-                            }
-                        }
-                    }
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(selected=delivery=="Delivery",onClick={delivery="Delivery"},label={Text("Delivery")});FilterChip(selected=delivery=="Pickup",onClick={delivery="Pickup"},label={Text("Pickup")})}
+            LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)){items(c){x->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Row(verticalAlignment=Alignment.CenterVertically){ProductImage(x.product.image,Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)));Spacer(Modifier.width(10.dp));Column(Modifier.weight(1f)){Text(x.product.name,fontWeight=FontWeight.Bold);money(x.product.price)};TextButton(onClick={remove(x.product)}){Text("Remove")}};Row(verticalAlignment=Alignment.CenterVertically){Text("Qty",color=Color.Gray);Spacer(Modifier.weight(1f));TextButton(onClick={minus(x.product)}){Text("−")};Text(x.qty.toString(),fontWeight=FontWeight.Bold);TextButton(onClick={plus(x.product)}){Text("+")}}}}}}
+            Spacer(Modifier.height(8.dp));Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(selected=delivery=="Delivery",onClick={delivery="Delivery"},label={Text("Delivery")});FilterChip(selected=delivery=="Pickup",onClick={delivery="Pickup"},label={Text("Pickup")})}
             if(delivery=="Delivery"){
                 Text("Pilih district delivery",fontWeight=FontWeight.Bold)
                 Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){FilterChip(selected=district=="Brunei-Muara",onClick={district="Brunei-Muara"},label={Text("B-Muara B$3")});FilterChip(selected=district=="Tutong",onClick={district="Tutong"},label={Text("Tutong B$5")})}
                 Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){FilterChip(selected=district=="Kuala Belait",onClick={district="Kuala Belait"},label={Text("KB B$6")});FilterChip(selected=district=="Temburong",onClick={district="Temburong"},label={Text("Temburong B$8")})}
+                OutlinedTextField(deliveryAddress,{deliveryAddress=it},label={Text("Alamat delivery buyer")},modifier=Modifier.fillMaxWidth())
             }
-            Text("Payment",fontWeight=FontWeight.Bold)
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(selected=payment=="Cash",onClick={payment="Cash"},label={Text("💵 Cash")});FilterChip(selected=payment=="Transfer",onClick={payment="Transfer"},label={Text("🏦 Transfer")})}
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Subtotal");money(subtotal)}
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(if(delivery=="Pickup")"Pickup fee" else "Delivery $district");money(fee)}
-            HorizontalDivider(Modifier.padding(vertical=8.dp))
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Jumlah",fontWeight=FontWeight.Bold);money(subtotal+fee)}
-            Button(onClick={checkout(delivery,if(delivery=="Pickup")"Pickup" else district,fee,payment,subtotal+fee)},modifier=Modifier.fillMaxWidth()){Text("Place Order")}
+            Text("Payment",fontWeight=FontWeight.Bold);Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(selected=payment=="Cash",onClick={payment="Cash"},label={Text("💵 Cash")});FilterChip(selected=payment=="Transfer",onClick={payment="Transfer"},label={Text("🏦 Transfer")})}
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Subtotal");money(subtotal)};Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(if(delivery=="Pickup")"Pickup fee" else "Delivery $district");money(fee)};HorizontalDivider(Modifier.padding(vertical=8.dp));Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Jumlah",fontWeight=FontWeight.Bold);money(subtotal+fee)}
+            Button(onClick={checkout(delivery,if(delivery=="Pickup")"Pickup" else district,if(delivery=="Pickup")"" else deliveryAddress,fee,payment,subtotal+fee)},modifier=Modifier.fillMaxWidth(),enabled=delivery=="Pickup"||deliveryAddress.isNotBlank()){Text("Place Order")}
         }
     }
 }
 
 @Composable
-fun ProfilePage(orders:List<Order>,user:UserAccount,seller:()->Unit,logout:()->Unit,markDelivered:(String)->Unit,m:Modifier){
-    val activeOrders=orders.filter{it.deliveredAt==null}
-    val historyOrders=orders.filter{it.deliveredAt!=null}
+fun ProfilePage(orders:List<Order>,user:UserAccount,notices:List<AppNotice>,seller:()->Unit,logout:()->Unit,markDelivered:(String)->Unit,openHistory:(Order)->Unit,m:Modifier){
+    val activeOrders=orders.filter{it.deliveredAt==null};val historyOrders=orders.filter{it.deliveredAt!=null}
     LazyColumn(modifier=m.fillMaxSize().background(Color.White),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
         item{Text("Akaun",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=Color(0xFF0D47A1));Text("👤 ${user.username}");Text("Role: ${user.role}",color=Color.Gray)}
         if(user.role=="Seller")item{Button(onClick=seller,modifier=Modifier.fillMaxWidth()){Text("🏪 Seller Dashboard")}}
+        if(user.role=="Seller"){item{Text("🔔 Seller Notifications",fontWeight=FontWeight.Bold)};if(notices.isEmpty())item{Text("Belum ada notification")};if(notices.isNotEmpty())items(notices.reversed()){n->Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=Color(0xFFFFF8E1))){Column(Modifier.padding(12.dp)){Text(n.title,fontWeight=FontWeight.Bold);Text(n.message)}}}}
         item{OutlinedButton(onClick=logout,modifier=Modifier.fillMaxWidth()){Text("Logout")}}
-        item{Text("Pesanan Aktif",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)}
-        if(activeOrders.isEmpty())item{Text("Tiada pesanan aktif")}
-        if(activeOrders.isNotEmpty())items(activeOrders.reversed()){order->LiveOrderCard(order,onDelivered={markDelivered(order.id)})}
-        item{HorizontalDivider();Text("History Delivery",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold,color=Color(0xFF0D47A1))}
-        if(historyOrders.isEmpty())item{Text("Belum ada delivery selesai")}
-        if(historyOrders.isNotEmpty())items(historyOrders.sortedByDescending{it.deliveredAt}){order->DeliveredOrderCard(order)}
+        item{Text("Pesanan Aktif",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)};if(activeOrders.isEmpty())item{Text("Tiada pesanan aktif")};if(activeOrders.isNotEmpty())items(activeOrders.reversed()){order->LiveOrderCard(order,onDelivered={markDelivered(order.id)})}
+        item{HorizontalDivider();Text("History Delivery",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold,color=Color(0xFF0D47A1));Text("Tap history untuk lihat seller details.",style=MaterialTheme.typography.bodySmall,color=Color.Gray)}
+        if(historyOrders.isEmpty())item{Text("Belum ada delivery selesai")};if(historyOrders.isNotEmpty())items(historyOrders.sortedByDescending{it.deliveredAt}){order->Box(Modifier.clickable{openHistory(order)}){DeliveredOrderCard(order)}}
     }
 }
 
-@Composable
-fun LiveOrderCard(order:Order,onDelivered:()->Unit){
-    var stage by remember(order.id){mutableIntStateOf(0)}
-    var showTracking by remember(order.id){mutableStateOf(false)}
-    val stages=if(order.delivery=="Pickup") listOf("Order diterima","Sedang disediakan","Sedia untuk pickup","Selesai") else listOf("Order diterima","Seller menyiapkan barang","Runner collect semua seller","Dalam perjalanan","Sampai")
-    LaunchedEffect(order.id){
-        while(stage<stages.lastIndex){delay(7000);stage++}
-        if(order.deliveredAt==null) onDelivered()
-    }
-    val sellerGroups=order.lines.groupBy{it.product.shop}
-    Card(shape=RoundedCornerShape(22.dp),colors=CardDefaults.cardColors(containerColor=Color.White),modifier=Modifier.fillMaxWidth()){
-        Column(Modifier.padding(16.dp)){
-            Text("Order #${order.id}",fontWeight=FontWeight.Bold)
-            Text(stages[stage],fontWeight=FontWeight.ExtraBold,color=Color(0xFF1565C0))
-            LinearProgressIndicator(progress={(stage+1).toFloat()/stages.size.toFloat()},modifier=Modifier.fillMaxWidth())
-            Text("B$%.2f".format(order.total),fontWeight=FontWeight.Bold)
-            Text("Payment: ${order.paymentMethod}")
-            Text(if(order.delivery=="Pickup")"Pickup" else "Delivery: ${order.district} • B$%.2f".format(order.deliveryFee),color=Color.Gray)
-            Text("Pickup seller (${sellerGroups.size})",fontWeight=FontWeight.Bold)
-            sellerGroups.forEach{(shop,lines)->Text("• $shop — ${lines.sumOf{it.qty}} item")}
-            if(order.delivery!="Pickup"){
-                Text("Runner KadaiKu",fontWeight=FontWeight.Bold)
-                Text("🛵 ${order.runnerName}")
-                Text("📞 ${order.runnerPhone}")
-            }
-            OutlinedButton(onClick={showTracking=!showTracking},modifier=Modifier.fillMaxWidth()){
-                Text(if(showTracking)"Tutup Tracking" else "📍 Live Tracking")
-            }
-            if(showTracking){
-                Text(if(order.delivery=="Pickup")"Pickup order — tiada runner delivery." else "${order.runnerName} akan collect dari ${sellerGroups.size} seller sebelum menghantar ke ${order.district}.",color=Color.Gray)
-            }
-        }
-    }
-}
+@Composable fun LiveOrderCard(order:Order,onDelivered:()->Unit){var stage by remember(order.id){mutableIntStateOf(0)};var showTracking by remember(order.id){mutableStateOf(false)};val stages=if(order.delivery=="Pickup") listOf("Order diterima","Sedang disediakan","Sedia untuk pickup","Selesai") else listOf("Order diterima","Seller menyiapkan barang","Runner collect semua seller","Dalam perjalanan","Sampai");LaunchedEffect(order.id){while(stage<stages.lastIndex){delay(7000);stage++};if(order.deliveredAt==null)onDelivered()};val sellerGroups=order.lines.groupBy{it.product.shop};Card(shape=RoundedCornerShape(22.dp),colors=CardDefaults.cardColors(containerColor=Color.White),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text("Order #${order.id}",fontWeight=FontWeight.Bold);Text(stages[stage],fontWeight=FontWeight.ExtraBold,color=Color(0xFF1565C0));LinearProgressIndicator(progress={(stage+1).toFloat()/stages.size.toFloat()},modifier=Modifier.fillMaxWidth());Text("B$%.2f".format(order.total),fontWeight=FontWeight.Bold);Text("Payment: ${order.paymentMethod}");Text(if(order.delivery=="Pickup")"Pickup" else "Delivery: ${order.district} • B$%.2f".format(order.deliveryFee),color=Color.Gray);Text("Pickup seller (${sellerGroups.size})",fontWeight=FontWeight.Bold);sellerGroups.forEach{(shop,lines)->Text("• $shop — ${lines.sumOf{it.qty}} item")};if(order.delivery!="Pickup"){Text("Runner KadaiKu",fontWeight=FontWeight.Bold);Text("🛵 ${order.runnerName}");Text("📞 ${order.runnerPhone}");Text("🏠 Deliver to: ${order.deliveryAddress}")};OutlinedButton(onClick={showTracking=!showTracking},modifier=Modifier.fillMaxWidth()){Text(if(showTracking)"Tutup Tracking" else "📍 Live Tracking")};if(showTracking){Text(if(order.delivery=="Pickup")"Pickup order — tiada runner delivery." else "${order.runnerName} akan collect dari ${sellerGroups.size} seller sebelum menghantar ke ${order.deliveryAddress}.",color=Color.Gray)}}}}
 
-@Composable
-fun DeliveredOrderCard(order:Order){
-    Card(shape=RoundedCornerShape(20.dp),colors=CardDefaults.cardColors(containerColor=Color(0xFFF5F9FF)),modifier=Modifier.fillMaxWidth()){
-        Column(Modifier.padding(14.dp)){
-            Text("Order #${order.id}",fontWeight=FontWeight.Bold)
-            Text(if(order.delivery=="Pickup")"✅ Pickup selesai" else "✅ Delivery sampai",fontWeight=FontWeight.ExtraBold,color=Color(0xFF1565C0))
-            Text("Payment: ${order.paymentMethod}")
-            Text("Jumlah buyer: B$%.2f".format(order.total))
-            Text(if(order.delivery=="Pickup")"Pickup" else "${order.district} • Runner ${order.runnerName}",color=Color.Gray)
-        }
-    }
-}
+@Composable fun DeliveredOrderCard(order:Order){Card(shape=RoundedCornerShape(20.dp),colors=CardDefaults.cardColors(containerColor=Color(0xFFF5F9FF)),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(14.dp)){Text("Order #${order.id}",fontWeight=FontWeight.Bold);Text(if(order.delivery=="Pickup")"✅ Pickup selesai" else "✅ Delivery sampai",fontWeight=FontWeight.ExtraBold,color=Color(0xFF1565C0));Text("Payment: ${order.paymentMethod}");Text("Jumlah buyer: B$%.2f".format(order.total));Text("Tap untuk details seller",color=Color(0xFF1565C0),fontWeight=FontWeight.SemiBold)}}}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable fun HistoryDetailSheet(order:Order,onClose:()->Unit){ModalBottomSheet(onDismissRequest=onClose){LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){item{Text("History Order #${order.id}",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=Color(0xFF0D47A1));Text(if(order.delivery=="Pickup")"✅ Pickup selesai" else "✅ Delivery sampai")};items(order.lines.groupBy{it.product.sellerId}.values.toList()){lines->val p=lines.first().product;Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=Color(0xFFF5F9FF))){Column(Modifier.padding(14.dp)){Text("🏪 ${p.shop}",fontWeight=FontWeight.Bold);Text("📞 ${p.sellerPhone}");Text("🏠 ${p.sellerAddress}");lines.forEach{Text("• ${it.product.name} × ${it.qty} — B$%.2f".format(it.product.price*it.qty))}}}};item{Text("Payment: ${order.paymentMethod}");if(order.delivery!="Pickup"){Text("Delivery: ${order.deliveryAddress}");Text("Runner: ${order.runnerName} • ${order.runnerPhone}")};Spacer(Modifier.height(24.dp))}}}}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable fun CustomerServiceSheet(onClose:()->Unit){ModalBottomSheet(onDismissRequest=onClose){Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){Text("💬 KadaiKu Customer Service",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=Color(0xFF20C56B));Text("Ada masalah dengan order, seller atau delivery? Hubungi customer service KadaiKu.");Card(colors=CardDefaults.cardColors(containerColor=Color(0xFFE8F8EF))){Column(Modifier.padding(16.dp)){Text("Support",fontWeight=FontWeight.Bold);Text("📞 +673 7XX XXXX");Text("🟢 Online support demo")}};Text("Live chat sebenar / WhatsApp integration boleh disambung bila backend support sudah ready.",style=MaterialTheme.typography.bodySmall,color=Color.Gray);Spacer(Modifier.height(24.dp))}}}
 
 fun startOfWeek(now:Long):Long{val c=Calendar.getInstance().apply{timeInMillis=now;set(Calendar.DAY_OF_WEEK,firstDayOfWeek);set(Calendar.HOUR_OF_DAY,0);set(Calendar.MINUTE,0);set(Calendar.SECOND,0);set(Calendar.MILLISECOND,0)};return c.timeInMillis}
 fun startOfMonth(now:Long):Long{val c=Calendar.getInstance().apply{timeInMillis=now;set(Calendar.DAY_OF_MONTH,1);set(Calendar.HOUR_OF_DAY,0);set(Calendar.MINUTE,0);set(Calendar.SECOND,0);set(Calendar.MILLISECOND,0)};return c.timeInMillis}
 fun startOfYear(now:Long):Long{val c=Calendar.getInstance().apply{timeInMillis=now;set(Calendar.DAY_OF_YEAR,1);set(Calendar.HOUR_OF_DAY,0);set(Calendar.MINUTE,0);set(Calendar.SECOND,0);set(Calendar.MILLISECOND,0)};return c.timeInMillis}
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable fun SellerSheet(onClose:()->Unit,onAdd:()->Unit,products:List<Product>,orders:List<Order>,profile:SellerProfile,sellerId:String,onDelete:(String)->Unit){
-    val now=System.currentTimeMillis()
-    val sellerOrders=orders.filter{o->o.lines.any{it.product.sellerId==sellerId}}
-    val weekOrders=sellerOrders.filter{it.createdAt>=startOfWeek(now)}
-    val monthOrders=sellerOrders.filter{it.createdAt>=startOfMonth(now)}
-    val yearOrders=sellerOrders.filter{it.createdAt>=startOfYear(now)}
-    val mine=products.filter{it.sellerId==sellerId}
-    val completedSellerOrders=sellerOrders.filter{it.deliveredAt!=null}
-    ModalBottomSheet(onDismissRequest=onClose){
-        LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-            item{Text("${profile.shop} Dashboard",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=Color(0xFF0D47A1));Text("Dashboard khas seller account ani",color=Color.Gray)}
-            item{Card(colors=CardDefaults.cardColors(containerColor=Color(0xFFEAF3FF))){Column(Modifier.padding(14.dp)){Text("Seller Contact",fontWeight=FontWeight.Bold);Text("📞 ${profile.phone}");Text("🏠 ${profile.address}")}}}
-            item{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                StatCard("Minggu",weekOrders.size,weekOrders.sumOf{sellerOrderValue(it,sellerId)},Modifier.weight(1f))
-                StatCard("Bulan",monthOrders.size,monthOrders.sumOf{sellerOrderValue(it,sellerId)},Modifier.weight(1f))
-                StatCard("Tahun",yearOrders.size,yearOrders.sumOf{sellerOrderValue(it,sellerId)},Modifier.weight(1f))
-            }}
-            item{Text("Jumlah jualan hanya barang kedai ani — delivery fee dan barang seller lain inda dikira.",style=MaterialTheme.typography.bodySmall,color=Color.Gray)}
-            item{Button(onClick=onAdd,modifier=Modifier.fillMaxWidth()){Text("+ Tambah Produk")}}
-            item{Text("Produk saya",fontWeight=FontWeight.Bold)}
-            if(mine.isEmpty())item{Text("Belum ada produk")}
-            if(mine.isNotEmpty())items(mine){p->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(10.dp),verticalAlignment=Alignment.CenterVertically){ProductImage(p.image,Modifier.size(54.dp).clip(RoundedCornerShape(12.dp)));Spacer(Modifier.width(10.dp));Column(Modifier.weight(1f)){Text(p.name,fontWeight=FontWeight.Bold);money(p.price)};TextButton(onClick={onDelete(p.id)}){Text("Padam")}}}}
-            item{Text("Order untuk kedai saya",fontWeight=FontWeight.Bold)}
-            if(sellerOrders.isEmpty())item{Text("Belum ada order")}
-            if(sellerOrders.isNotEmpty())items(sellerOrders.reversed()){o->
-                val own=o.lines.filter{it.product.sellerId==sellerId}
-                val ownValue=sellerOrderValue(o,sellerId)
-                Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){
-                    Text("#${o.id}",fontWeight=FontWeight.Bold)
-                    Text("${own.sumOf{it.qty}} item dari kedai ani")
-                    Text("Jualan kedai ani: B$%.2f".format(ownValue),fontWeight=FontWeight.Bold,color=Color(0xFF1565C0))
-                    Text("Payment: ${o.paymentMethod}")
-                    Text(if(o.deliveredAt!=null)"✅ Selesai / History" else if(o.delivery=="Pickup")"Pickup" else "Delivery: ${o.district}")
-                }}
-            }
-            item{Text("History Seller",fontWeight=FontWeight.Bold,color=Color(0xFF0D47A1))}
-            if(completedSellerOrders.isEmpty())item{Text("Belum ada order selesai")}
-            if(completedSellerOrders.isNotEmpty())items(completedSellerOrders.sortedByDescending{it.deliveredAt}){o->
-                Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=Color(0xFFF5F9FF))){Column(Modifier.padding(12.dp)){
-                    Text("#${o.id} • Selesai",fontWeight=FontWeight.Bold)
-                    Text("Jualan kedai ani: B$%.2f".format(sellerOrderValue(o,sellerId)))
-                }}
-            }
-            item{Spacer(Modifier.height(30.dp))}
-        }
-    }
-}
+@Composable fun SellerSheet(onClose:()->Unit,onAdd:()->Unit,products:List<Product>,orders:List<Order>,profile:SellerProfile,sellerId:String,onDelete:(String)->Unit){val now=System.currentTimeMillis();val sellerOrders=orders.filter{o->o.lines.any{it.product.sellerId==sellerId}};val weekOrders=sellerOrders.filter{it.createdAt>=startOfWeek(now)};val monthOrders=sellerOrders.filter{it.createdAt>=startOfMonth(now)};val yearOrders=sellerOrders.filter{it.createdAt>=startOfYear(now)};val mine=products.filter{it.sellerId==sellerId};val completedSellerOrders=sellerOrders.filter{it.deliveredAt!=null};ModalBottomSheet(onDismissRequest=onClose){LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){item{Text("${profile.shop} Dashboard",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=Color(0xFF0D47A1));Text("Dashboard khas seller account ani",color=Color.Gray)};item{Card(colors=CardDefaults.cardColors(containerColor=Color(0xFFEAF3FF))){Column(Modifier.padding(14.dp)){Text("Seller Contact",fontWeight=FontWeight.Bold);Text("📞 ${profile.phone}");Text("🏠 ${profile.address}")}}};item{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){StatCard("Minggu",weekOrders.size,weekOrders.sumOf{sellerOrderValue(it,sellerId)},Modifier.weight(1f));StatCard("Bulan",monthOrders.size,monthOrders.sumOf{sellerOrderValue(it,sellerId)},Modifier.weight(1f));StatCard("Tahun",yearOrders.size,yearOrders.sumOf{sellerOrderValue(it,sellerId)},Modifier.weight(1f))}};item{Text("Jumlah jualan hanya barang kedai ani — delivery fee dan barang seller lain inda dikira.",style=MaterialTheme.typography.bodySmall,color=Color.Gray)};item{Button(onClick=onAdd,modifier=Modifier.fillMaxWidth()){Text("+ Tambah Produk")}};item{Text("Produk saya",fontWeight=FontWeight.Bold)};if(mine.isEmpty())item{Text("Belum ada produk")};if(mine.isNotEmpty())items(mine){p->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(10.dp),verticalAlignment=Alignment.CenterVertically){ProductImage(p.image,Modifier.size(54.dp).clip(RoundedCornerShape(12.dp)));Spacer(Modifier.width(10.dp));Column(Modifier.weight(1f)){Text(p.name,fontWeight=FontWeight.Bold);money(p.price)};TextButton(onClick={onDelete(p.id)}){Text("Padam")}}}};item{Text("Order untuk kedai saya",fontWeight=FontWeight.Bold)};if(sellerOrders.isEmpty())item{Text("Belum ada order")};if(sellerOrders.isNotEmpty())items(sellerOrders.reversed()){o->val own=o.lines.filter{it.product.sellerId==sellerId};val ownValue=sellerOrderValue(o,sellerId);Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Text("#${o.id}",fontWeight=FontWeight.Bold);Text("${own.sumOf{it.qty}} item dari kedai ani");Text("Jualan kedai ani: B$%.2f".format(ownValue),fontWeight=FontWeight.Bold,color=Color(0xFF1565C0));Text("Payment: ${o.paymentMethod}");Text(if(o.deliveredAt!=null)"✅ Selesai / History" else if(o.delivery=="Pickup")"Pickup" else "Delivery: ${o.district}")}}};item{Text("History Seller",fontWeight=FontWeight.Bold,color=Color(0xFF0D47A1))};if(completedSellerOrders.isEmpty())item{Text("Belum ada order selesai")};if(completedSellerOrders.isNotEmpty())items(completedSellerOrders.sortedByDescending{it.deliveredAt}){o->Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=Color(0xFFF5F9FF))){Column(Modifier.padding(12.dp)){Text("#${o.id} • Selesai",fontWeight=FontWeight.Bold);Text("Jualan kedai ani: B$%.2f".format(sellerOrderValue(o,sellerId)))}}};item{Spacer(Modifier.height(30.dp))}}}}
 
 @Composable fun StatCard(label:String,count:Int,sales:Double,m:Modifier=Modifier){Card(modifier=m,shape=RoundedCornerShape(18.dp),colors=CardDefaults.cardColors(containerColor=Color.White)){Column(Modifier.padding(12.dp)){Text(label,fontWeight=FontWeight.Bold);Text("$count order",style=MaterialTheme.typography.bodySmall,color=Color.Gray);Text("B$%.2f".format(sales),fontWeight=FontWeight.ExtraBold,color=Color(0xFF1565C0))}}}
 @Composable fun AddProductDialog(sellerProfile:SellerProfile,onDismiss:()->Unit,onSave:(String,Double,String,String,String)->Unit){var n by remember{mutableStateOf("")};var pr by remember{mutableStateOf("")};var cat by remember{mutableStateOf("Makanan")};var area by remember{mutableStateOf("")};var imageUri by remember{mutableStateOf("")};val launcher=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){uri:Uri?->imageUri=uri?.toString().orEmpty()};AlertDialog(onDismissRequest=onDismiss,title={Text("Tambah Produk")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){Text("Gambar produk wajib",fontWeight=FontWeight.Bold);if(imageUri.isNotBlank())ProductImage(imageUri,Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(16.dp)))else Text("🖼️ Belum pilih gambar");OutlinedButton(onClick={launcher.launch("image/*")},modifier=Modifier.fillMaxWidth()){Text(if(imageUri.isBlank())"Pilih gambar dari Gallery" else "Tukar gambar")};OutlinedTextField(n,{n=it},label={Text("Nama produk")},modifier=Modifier.fillMaxWidth());OutlinedTextField(pr,{pr=it},label={Text("Harga B$")},modifier=Modifier.fillMaxWidth());OutlinedTextField(cat,{cat=it},label={Text("Kategori")},modifier=Modifier.fillMaxWidth());OutlinedTextField(area,{area=it},label={Text("Kawasan")},modifier=Modifier.fillMaxWidth());Text("Seller: ${sellerProfile.shop}");Text("📞 ${sellerProfile.phone}");Text("🏠 ${sellerProfile.address}")}},confirmButton={Button(enabled=n.isNotBlank()&&pr.toDoubleOrNull()!=null&&area.isNotBlank()&&imageUri.isNotBlank(),onClick={onSave(n,pr.toDouble(),cat,area,imageUri)}){Text("Simpan")}},dismissButton={TextButton(onClick=onDismiss){Text("Batal")}})}
