@@ -50,6 +50,7 @@ class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:
     var search by remember{mutableStateOf("")}
     var showSeller by remember{mutableStateOf(false)}
     var showAdd by remember{mutableStateOf(false)}
+    var selectedProduct by remember{mutableStateOf<Product?>(null)}
     var sellerProfile by remember{mutableStateOf(SellerProfile("Kedai Saya","",""))}
     val filtered=products.filter{search.isBlank()||it.name.contains(search,true)||it.shop.contains(search,true)||it.category.contains(search,true)}
 
@@ -58,8 +59,8 @@ class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:
         bottomBar={NavigationBar{listOf("Home","Search","Cart (${cart.sumOf{it.qty}})","Profile").forEachIndexed{i,l->NavigationBarItem(selected=tab==i,onClick={tab=i},icon={},label={Text(l)})}}}
     ){pad->
         when(tab){
-            0->Home(filtered,search,{search=it},{showSeller=true},{p->cart=addCart(cart,p)},Modifier.padding(pad))
-            1->SearchPage(filtered,search,{search=it},{p->cart=addCart(cart,p)},Modifier.padding(pad))
+            0->Home(filtered,search,{search=it},{showSeller=true},{p->cart=addCart(cart,p)},{selectedProduct=it},Modifier.padding(pad))
+            1->SearchPage(filtered,search,{search=it},{p->cart=addCart(cart,p)},{selectedProduct=it},Modifier.padding(pad))
             2->CartPage(cart,{p->cart=removeOne(cart,p)},{p->cart=addCart(cart,p)},{delivery,total->
                 if(cart.isNotEmpty()){
                     orders=orders+Order(lines=cart.map{it.copy()},delivery=delivery,total=total)
@@ -69,6 +70,10 @@ class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:
             },Modifier.padding(pad))
             else->ProfilePage(orders,{showSeller=true},Modifier.padding(pad))
         }
+    }
+
+    selectedProduct?.let{p->
+        ProductDetailSheet(product=p,onClose={selectedProduct=null},onAdd={cart=addCart(cart,p)})
     }
 
     if(showSeller) SellerSheet(
@@ -104,7 +109,7 @@ fun ProductImage(image:String,modifier:Modifier=Modifier){
 }
 
 @Composable
-fun Home(ps:List<Product>,search:String,setSearch:(String)->Unit,seller:()->Unit,add:(Product)->Unit,m:Modifier){
+fun Home(ps:List<Product>,search:String,setSearch:(String)->Unit,seller:()->Unit,add:(Product)->Unit,view:(Product)->Unit,m:Modifier){
     LazyColumn(modifier=m.fillMaxSize().background(Color(0xFFF8F8FB)),contentPadding=PaddingValues(bottom=20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
         item{
             Box(modifier=Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF6A1B9A),Color(0xFF8E24AA),Color(0xFFFF5C8A),Color(0xFFFFA726)))).padding(horizontal=20.dp,vertical=18.dp)){
@@ -171,7 +176,7 @@ fun Home(ps:List<Product>,search:String,setSearch:(String)->Unit,seller:()->Unit
                 }
             }
         }else{
-            items(ps){p->ColorfulProductCard(p,add,Modifier.padding(horizontal=16.dp))}
+            items(ps){p->ColorfulProductCard(p,add,view,Modifier.padding(horizontal=16.dp))}
         }
     }
 }
@@ -179,7 +184,7 @@ fun Home(ps:List<Product>,search:String,setSearch:(String)->Unit,seller:()->Unit
 @Composable fun CategoryCard(icon:String,label:String,bg:Color,m:Modifier=Modifier){Card(modifier=m,colors=CardDefaults.cardColors(containerColor=bg),shape=RoundedCornerShape(18.dp)){Column(Modifier.padding(vertical=14.dp,horizontal=8.dp),horizontalAlignment=Alignment.CenterHorizontally){Text(icon,style=MaterialTheme.typography.headlineSmall);Spacer(Modifier.height(4.dp));Text(label,fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.labelMedium)}}}
 
 @Composable
-fun ColorfulProductCard(p:Product,add:(Product)->Unit,m:Modifier=Modifier){
+fun ColorfulProductCard(p:Product,add:(Product)->Unit,view:(Product)->Unit,m:Modifier=Modifier){
     Card(modifier=m.fillMaxWidth(),shape=RoundedCornerShape(22.dp),colors=CardDefaults.cardColors(containerColor=Color.White)){
         Column(Modifier.padding(14.dp)){
             Row(verticalAlignment=Alignment.CenterVertically){
@@ -192,20 +197,70 @@ fun ColorfulProductCard(p:Product,add:(Product)->Unit,m:Modifier=Modifier){
                     Spacer(Modifier.height(5.dp))
                     Text("B$%.2f".format(p.price),fontWeight=FontWeight.ExtraBold,color=Color(0xFFE65100),style=MaterialTheme.typography.titleMedium)
                 }
-                Button(onClick={add(p)},shape=RoundedCornerShape(14.dp)){Text("Tambah")}
             }
             Spacer(Modifier.height(10.dp))
-            HorizontalDivider(color=Color(0xFFEEEEEE))
-            Spacer(Modifier.height(8.dp))
-            Text("Seller Contact",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.labelLarge)
-            Text("📞 ${p.sellerPhone.ifBlank{"Belum diisi"}}",style=MaterialTheme.typography.bodySmall)
-            Text("🏠 ${p.sellerAddress.ifBlank{"Alamat belum diisi"}}",style=MaterialTheme.typography.bodySmall,color=Color.DarkGray)
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                OutlinedButton(onClick={view(p)},modifier=Modifier.weight(1f),shape=RoundedCornerShape(14.dp)){Text("Lihat Produk")}
+                Button(onClick={add(p)},modifier=Modifier.weight(1f),shape=RoundedCornerShape(14.dp)){Text("Tambah")}
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProductDetailSheet(product:Product,onClose:()->Unit,onAdd:()->Unit){
+    ModalBottomSheet(onDismissRequest=onClose){
+        LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+            item{
+                ProductImage(product.image,Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(24.dp)))
+            }
+            item{
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.Top){
+                    Column(Modifier.weight(1f)){
+                        Text(product.name,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.ExtraBold)
+                        Text(product.shop,color=Color(0xFF6A1B9A),fontWeight=FontWeight.Bold)
+                        Text("📍 ${product.area} • ${product.category}",color=Color.Gray)
+                    }
+                    Text("B$%.2f".format(product.price),fontWeight=FontWeight.ExtraBold,color=Color(0xFFE65100),style=MaterialTheme.typography.titleLarge)
+                }
+            }
+            item{
+                Card(colors=CardDefaults.cardColors(containerColor=Color(0xFFF7F3FC)),shape=RoundedCornerShape(20.dp)){
+                    Column(Modifier.padding(16.dp)){
+                        Text("Tentang Produk",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(6.dp))
+                        Text("Produk ${product.category.lowercase()} dijual oleh ${product.shop}. Hubungi seller untuk pertanyaan lanjut, pilihan stok, warna, saiz atau jika ada masalah selepas pembelian.")
+                    }
+                }
+            }
+            item{
+                Card(colors=CardDefaults.cardColors(containerColor=Color(0xFFE8F5E9)),shape=RoundedCornerShape(20.dp)){
+                    Column(Modifier.padding(16.dp)){
+                        Text("Seller Profile",fontWeight=FontWeight.ExtraBold,style=MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(8.dp))
+                        Text("🏪 ${product.shop}",fontWeight=FontWeight.Bold)
+                        Text("📞 ${product.sellerPhone.ifBlank{"Belum diisi"}}")
+                        Text("🏠 ${product.sellerAddress.ifBlank{"Alamat belum diisi"}}")
+                        Text("📍 Kawasan: ${product.area}")
+                    }
+                }
+            }
+            item{
+                Text("Tip: Simpan nombor seller untuk pertanyaan produk atau jika barang rosak/bermasalah selepas pembelian.",style=MaterialTheme.typography.bodySmall,color=Color.Gray)
+            }
+            item{
+                Button(onClick=onAdd,modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp)){
+                    Text("Tambah ke Troli • B$%.2f".format(product.price),fontWeight=FontWeight.Bold)
+                }
+            }
+            item{Spacer(Modifier.height(24.dp))}
         }
     }
 }
 
 @Composable
-fun SearchPage(ps:List<Product>,q:String,setQ:(String)->Unit,add:(Product)->Unit,m:Modifier){
+fun SearchPage(ps:List<Product>,q:String,setQ:(String)->Unit,add:(Product)->Unit,view:(Product)->Unit,m:Modifier){
     Column(m.fillMaxSize().background(Color(0xFFF8F8FB)).padding(16.dp)){
         Text("Cari barang",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
         Text("Search ikut barang, kedai atau kategori",style=MaterialTheme.typography.bodyMedium,color=Color.Gray)
@@ -221,7 +276,7 @@ fun SearchPage(ps:List<Product>,q:String,setQ:(String)->Unit,add:(Product)->Unit
                     Text("Cuba keyword lain.",color=Color.Gray)
                 }
             }
-        }else ProductList(ps,add)
+        }else ProductList(ps,add,view)
     }
 }
 
@@ -242,7 +297,7 @@ fun SearchBox(q:String,setQ:(String)->Unit){
     }
 }
 
-@Composable fun ProductList(ps:List<Product>,add:(Product)->Unit){LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)){items(ps){p->ColorfulProductCard(p,add)}}}
+@Composable fun ProductList(ps:List<Product>,add:(Product)->Unit,view:(Product)->Unit){LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)){items(ps){p->ColorfulProductCard(p,add,view)}}}
 
 @Composable
 fun CartPage(c:List<CartLine>,minus:(Product)->Unit,plus:(Product)->Unit,checkout:(String,Double)->Unit,m:Modifier){
@@ -302,15 +357,7 @@ fun LiveOrderCard(order:Order){
     val pickupStages=listOf("Order diterima","Sedang disediakan","Sedia untuk pickup","Selesai")
     val stages=if(order.delivery=="Pickup")pickupStages else deliveryStages
     LaunchedEffect(order.id){while(stage<stages.lastIndex){delay(7000);stage++}}
-    val eta=when{
-        order.delivery=="Pickup"&&stage<2->"± 10 min"
-        order.delivery=="Pickup"->"Boleh ambil sekarang"
-        stage==0->"± 25 min"
-        stage==1->"± 20 min"
-        stage==2->"± 15 min"
-        stage==3->"± 7 min"
-        else->"Sudah sampai"
-    }
+    val eta=when{order.delivery=="Pickup"&&stage<2->"± 10 min";order.delivery=="Pickup"->"Boleh ambil sekarang";stage==0->"± 25 min";stage==1->"± 20 min";stage==2->"± 15 min";stage==3->"± 7 min";else->"Sudah sampai"}
     val statusColor=when(stage){0->Color(0xFF6A1B9A);1->Color(0xFFF57C00);2->Color(0xFF00897B);3->Color(0xFF1E88E5);else->Color(0xFF2E7D32)}
     Card(shape=RoundedCornerShape(22.dp),colors=CardDefaults.cardColors(containerColor=Color.White),modifier=Modifier.fillMaxWidth()){
         Column(Modifier.padding(16.dp)){
@@ -325,22 +372,13 @@ fun LiveOrderCard(order:Order){
             LinearProgressIndicator(progress={(stage+1).toFloat()/stages.size.toFloat()},modifier=Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)))
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Rider: Ahmad");Text("B$%.2f".format(order.total),fontWeight=FontWeight.Bold)}
-            order.lines.firstOrNull()?.product?.let{p->
-                Spacer(Modifier.height(8.dp))
-                Text("Seller: ${p.shop}",fontWeight=FontWeight.Bold)
-                Text("📞 ${p.sellerPhone}")
-                Text("🏠 ${p.sellerAddress}")
-            }
+            order.lines.firstOrNull()?.product?.let{p->Spacer(Modifier.height(8.dp));Text("Seller: ${p.shop}",fontWeight=FontWeight.Bold);Text("📞 ${p.sellerPhone}");Text("🏠 ${p.sellerAddress}")}
             Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick={showTracking=!showTracking},modifier=Modifier.fillMaxWidth()){Text(if(showTracking)"Tutup Tracking" else "📍 Live Tracking")}
             if(showTracking){
                 Spacer(Modifier.height(8.dp))
                 Card(colors=CardDefaults.cardColors(containerColor=Color(0xFFE3F2FD)),shape=RoundedCornerShape(16.dp)){
-                    Column(Modifier.padding(12.dp)){
-                        Text("Live rider location",fontWeight=FontWeight.Bold)
-                        Text("🛵 Rider sedang bergerak menuju lokasi buyer.")
-                        Text("Demo GPS tracking untuk testing version.",style=MaterialTheme.typography.bodySmall,color=Color.Gray)
-                    }
+                    Column(Modifier.padding(12.dp)){Text("Live rider location",fontWeight=FontWeight.Bold);Text("🛵 Rider sedang bergerak menuju lokasi buyer.");Text("Demo GPS tracking untuk testing version.",style=MaterialTheme.typography.bodySmall,color=Color.Gray)}
                 }
             }
         }
@@ -353,15 +391,7 @@ fun startOfYear(now:Long):Long{val c=Calendar.getInstance().apply{timeInMillis=n
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SellerSheet(
-    onClose:()->Unit,
-    onAdd:()->Unit,
-    products:List<Product>,
-    orders:List<Order>,
-    profile:SellerProfile,
-    onProfileChange:(SellerProfile)->Unit,
-    onDelete:(String)->Unit
-){
+fun SellerSheet(onClose:()->Unit,onAdd:()->Unit,products:List<Product>,orders:List<Order>,profile:SellerProfile,onProfileChange:(SellerProfile)->Unit,onDelete:(String)->Unit){
     var shop by remember(profile){mutableStateOf(profile.shop)}
     var phone by remember(profile){mutableStateOf(profile.phone)}
     var address by remember(profile){mutableStateOf(profile.address)}
@@ -370,7 +400,6 @@ fun SellerSheet(
     val monthOrders=orders.filter{it.createdAt>=startOfMonth(now)}
     val yearOrders=orders.filter{it.createdAt>=startOfYear(now)}
     val mine=products.filter{it.shop==profile.shop}
-
     ModalBottomSheet(onDismissRequest=onClose){
         LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
             item{Text("Seller Dashboard",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)}
@@ -395,7 +424,6 @@ fun SellerSheet(
             }
             item{Button(onClick=onAdd,modifier=Modifier.fillMaxWidth(),enabled=profile.phone.isNotBlank()&&profile.address.isNotBlank()){Text("+ Tambah Produk")}}
             item{Text("Produk saya",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)}
-
             if(mine.isEmpty()){
                 item{Text("Belum ada produk")}
             }else{
@@ -410,18 +438,13 @@ fun SellerSheet(
                     }
                 }
             }
-
             item{Text("Recent Orders",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)}
             if(orders.isEmpty()){
                 item{Text("Belum ada order")}
             }else{
                 items(orders.takeLast(5).reversed()){o->
                     Card(Modifier.fillMaxWidth()){
-                        Column(Modifier.padding(12.dp)){
-                            Text("#${o.id}",fontWeight=FontWeight.Bold)
-                            Text("${o.delivery} • ${o.lines.sumOf{it.qty}} item")
-                            money(o.total)
-                        }
+                        Column(Modifier.padding(12.dp)){Text("#${o.id}",fontWeight=FontWeight.Bold);Text("${o.delivery} • ${o.lines.sumOf{it.qty}} item");money(o.total)}
                     }
                 }
             }
@@ -430,16 +453,7 @@ fun SellerSheet(
     }
 }
 
-@Composable
-fun StatCard(label:String,count:Int,sales:Double,m:Modifier=Modifier){
-    Card(modifier=m,shape=RoundedCornerShape(18.dp),colors=CardDefaults.cardColors(containerColor=Color.White)){
-        Column(Modifier.padding(12.dp)){
-            Text(label,fontWeight=FontWeight.Bold)
-            Text("$count order",style=MaterialTheme.typography.bodySmall,color=Color.Gray)
-            Text("B$%.2f".format(sales),fontWeight=FontWeight.ExtraBold,color=Color(0xFF6A1B9A))
-        }
-    }
-}
+@Composable fun StatCard(label:String,count:Int,sales:Double,m:Modifier=Modifier){Card(modifier=m,shape=RoundedCornerShape(18.dp),colors=CardDefaults.cardColors(containerColor=Color.White)){Column(Modifier.padding(12.dp)){Text(label,fontWeight=FontWeight.Bold);Text("$count order",style=MaterialTheme.typography.bodySmall,color=Color.Gray);Text("B$%.2f".format(sales),fontWeight=FontWeight.ExtraBold,color=Color(0xFF6A1B9A))}}}
 
 @Composable
 fun AddProductDialog(sellerProfile:SellerProfile,onDismiss:()->Unit,onSave:(String,Double,String,String,String)->Unit){
@@ -449,7 +463,6 @@ fun AddProductDialog(sellerProfile:SellerProfile,onDismiss:()->Unit,onSave:(Stri
     var area by remember{mutableStateOf("")}
     var imageUri by remember{mutableStateOf("")}
     val launcher=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){uri:Uri?->imageUri=uri?.toString().orEmpty()}
-
     AlertDialog(
         onDismissRequest=onDismiss,
         title={Text("Tambah Produk")},
@@ -460,10 +473,7 @@ fun AddProductDialog(sellerProfile:SellerProfile,onDismiss:()->Unit,onSave:(Stri
                     ProductImage(imageUri,Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(16.dp)))
                 }else{
                     Card(colors=CardDefaults.cardColors(containerColor=Color(0xFFF3F0FA)),shape=RoundedCornerShape(16.dp),modifier=Modifier.fillMaxWidth()){
-                        Column(Modifier.padding(22.dp).fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally){
-                            Text("🖼️",style=MaterialTheme.typography.headlineLarge)
-                            Text("Belum pilih gambar")
-                        }
+                        Column(Modifier.padding(22.dp).fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally){Text("🖼️",style=MaterialTheme.typography.headlineLarge);Text("Belum pilih gambar")}
                     }
                 }
                 OutlinedButton(onClick={launcher.launch("image/*")},modifier=Modifier.fillMaxWidth()){Text(if(imageUri.isBlank())"Pilih gambar dari Gallery" else "Tukar gambar")}
