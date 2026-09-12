@@ -2,7 +2,5 @@
 <style name="Theme.KadaiKu" parent="android:style/Theme.Material.Light.NoActionBar">
     <item name="android:fontFamily">sans</item>
     <item name="android:statusBarColor">#0B5D3B</item>
-    <item name="android:windowBackground">@drawable/kadaiku_launch_background</item>
-    <item name="android:windowDisablePreview">false</item>
 </style>
 </resources>
