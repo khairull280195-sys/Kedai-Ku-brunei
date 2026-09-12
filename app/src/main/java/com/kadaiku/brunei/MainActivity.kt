@@ -75,31 +75,30 @@ fun deliveryEta(order:Order,language:String)=when{order.runnerStatus=="Arrived"-
 class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState);setContent{KadaiKuApp()}}}
 
 @Composable fun SplashScreen(){
-    val logoScale=remember{Animatable(.88f)}
-    val kScale=remember{Animatable(.72f)}
+    val logoScale=remember{Animatable(.9f)}
+    val kScale=remember{Animatable(.8f)}
     val kAlpha=remember{Animatable(0f)}
     LaunchedEffect(Unit){
-        logoScale.animateTo(1f,tween(520,easing=FastOutSlowInEasing))
-        delay(380)
-        kAlpha.animateTo(1f,tween(180))
-        kScale.animateTo(1.08f,tween(280,easing=FastOutSlowInEasing))
-        delay(100)
-        kScale.animateTo(20f,tween(760,easing=FastOutSlowInEasing))
+        logoScale.animateTo(1f,tween(420,easing=FastOutSlowInEasing))
+        delay(240)
+        kAlpha.animateTo(1f,tween(140))
+        kScale.animateTo(1.15f,tween(220,easing=FastOutSlowInEasing))
+        delay(80)
+        kScale.animateTo(5.5f,tween(520,easing=FastOutSlowInEasing))
     }
     Box(Modifier.fillMaxSize().background(Color.White),contentAlignment=Alignment.Center){
         Image(
             painter=painterResource(id=R.drawable.kadaiku_splash_logo),
             contentDescription="KadaiKu logo",
-            modifier=Modifier.fillMaxWidth(.9f).aspectRatio(1f).scale(logoScale.value),
+            modifier=Modifier.size(280.dp).scale(logoScale.value),
             contentScale=ContentScale.Fit
         )
-        Text(
-            "K",
-            modifier=Modifier.offset(y=(-8).dp).scale(kScale.value),
-            style=MaterialTheme.typography.displayLarge,
-            fontWeight=FontWeight.Black,
-            color=KadaiPurple.copy(alpha=kAlpha.value)
-        )
+        Box(
+            Modifier.size(110.dp).scale(kScale.value).clip(RoundedCornerShape(30.dp)).background(KadaiPurple.copy(alpha=kAlpha.value)),
+            contentAlignment=Alignment.Center
+        ){
+            Text("K",style=MaterialTheme.typography.displayMedium,fontWeight=FontWeight.Black,color=Color.White)
+        }
     }
 }
 @Composable fun CartBadgeIcon(count:Int){Box(Modifier.size(28.dp),contentAlignment=Alignment.Center){Text("🛒");if(count>0){Box(Modifier.align(Alignment.TopEnd).size(16.dp).clip(CircleShape).background(Color.Red),contentAlignment=Alignment.Center){Text(if(count>99)"99+" else count.toString(),color=Color.White,style=MaterialTheme.typography.labelSmall,fontWeight=FontWeight.Bold)}}}}
@@ -114,7 +113,7 @@ fun openRegistrationConfirmationEmail(context:Context,email:String,username:Stri
     var accounts by remember{mutableStateOf(listOf<UserAccount>())};var currentUser by remember{mutableStateOf<UserAccount?>(null)};var showRegister by remember{mutableStateOf(false)};var tab by remember{mutableIntStateOf(0)}
     var products by remember{mutableStateOf(listOf(Product(name="Kek Coklat Premium",price=15.0,shop="Dapur Aisyah",category="Makanan",area="Gadong",image="🍰",sellerPhone="+673 7123456",sellerAddress="Gadong, Brunei-Muara",sellerId="sample-aisyah",stock=12),Product(name="Perfume Oud",price=20.0,shop="Brunei Fragrance",category="Beauty",area="Kiulap",image="🧴",sellerPhone="+673 8123456",sellerAddress="Kiulap, Brunei-Muara",sellerId="sample-fragrance",stock=8),Product(name="Baju Melayu",price=35.0,shop="Kedai Kita",category="Fashion",area="Bandar",image="👕",sellerPhone="+673 7234567",sellerAddress="Bandar Seri Begawan",sellerId="sample-kita",stock=10),Product(name="Frozen Food Combo",price=12.0,shop="Mama's Frozen",category="Makanan",area="Tutong",image="🥟",sellerPhone="+673 8345678",sellerAddress="Tutong, Brunei",sellerId="sample-mama",stock=15)))}
     var cart by remember{mutableStateOf(listOf<CartLine>())};var orders by remember{mutableStateOf(listOf<Order>())};var notices by remember{mutableStateOf(listOf<AppNotice>())};var search by remember{mutableStateOf("")};var selectedProduct by remember{mutableStateOf<Product?>(null)};var selectedSellerId by remember{mutableStateOf<String?>(null)};var historyOrder by remember{mutableStateOf<Order?>(null)};var showSeller by remember{mutableStateOf(false)};var showAdd by remember{mutableStateOf(false)};var showSupport by remember{mutableStateOf(false)};var showSettings by remember{mutableStateOf(false)};var supportX by remember{mutableStateOf(0f)};var supportY by remember{mutableStateOf(0f)};var playedNoticeCount by remember{mutableIntStateOf(0)}
-    LaunchedEffect(Unit){delay(2050);splash=false};if(splash){SplashScreen();return}
+    LaunchedEffect(Unit){delay(1550);splash=false};if(splash){SplashScreen();return}
     if(currentUser==null){if(showRegister) RegisterScreen(language,{language=it},{showRegister=false}){e,u,p,r,s,ph,loc->val a=UserAccount(email=e,username=u,password=p,role=r,shop=s,phone=ph,address=loc);accounts=accounts+a;rememberLogin=true;rememberedUsername=u;rememberedPassword=p;prefs.edit().putBoolean("remember",true).putString("username",u).putString("password",p).apply();openRegistrationConfirmationEmail(context,e,u);currentUser=a;showRegister=false}else LoginScreen(language,{language=it},if(rememberLogin)rememberedUsername else "",if(rememberLogin)rememberedPassword else "",rememberLogin,{u,p,rememberMe->accounts.firstOrNull{it.username.equals(u,true)&&it.password==p}?.let{currentUser=it;rememberLogin=rememberMe;if(rememberMe){rememberedUsername=u;rememberedPassword=p;prefs.edit().putBoolean("remember",true).putString("username",u).putString("password",p).apply()}else{rememberedUsername="";rememberedPassword="";prefs.edit().clear().apply()}}},{showRegister=true});return}
     val user=currentUser!!;val sellerProfile=SellerProfile(user.shop.ifBlank{tr(language,"Kedai Saya","My Shop")},user.phone,user.address);val buyerOrders=orders.filter{it.buyerId==user.id};val visibleProducts=products.filter{it.stock>0}.filter{search.isBlank()||it.name.contains(search,true)||it.shop.contains(search,true)||it.category.contains(search,true)};val cartCount=cart.sumOf{it.qty};val sellerNotices=if(user.role=="Seller"&&pushNotifications)notices.filter{it.target==user.id}else emptyList()
     LaunchedEffect(sellerNotices.size,user.id){if(user.role=="Seller"&&sellerNotices.size>playedNoticeCount){runCatching{RingtoneManager.getRingtone(context,RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))?.play()};playedNoticeCount=sellerNotices.size}}
