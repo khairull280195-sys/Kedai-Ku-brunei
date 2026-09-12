@@ -14,10 +14,13 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        val emailEndpoint = (project.findProperty("KADAIKU_EMAIL_ENDPOINT") as String?) ?: ""
+        buildConfigField("String", "KADAIKU_EMAIL_ENDPOINT", "\"${emailEndpoint.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {
