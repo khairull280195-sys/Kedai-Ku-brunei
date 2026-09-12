@@ -2,8 +2,8 @@
     <application
         android:theme="@style/Theme.KadaiKu"
         android:label="KadaiKu Brunei"
-        android:icon="@drawable/ic_kadaiku_logo"
-        android:roundIcon="@drawable/ic_kadaiku_logo">
+        android:icon="@drawable/kadaiku_app_icon"
+        android:roundIcon="@drawable/kadaiku_app_icon">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
