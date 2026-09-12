@@ -119,54 +119,43 @@ fun openRegistrationConfirmationEmail(context:Context,email:String,username:Stri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsSheet(
-    user:UserAccount,
-    onClose:()->Unit,
-    language:String,
-    onLanguage:(String)->Unit,
-    pushNotifications:Boolean,
-    onPushNotifications:(Boolean)->Unit,
-    onChangePassword:(String,String)->Boolean
-){
+fun SettingsSheet(user:UserAccount,onClose:()->Unit,language:String,onLanguage:(String)->Unit,pushNotifications:Boolean,onPushNotifications:(Boolean)->Unit,onChangePassword:(String,String)->Boolean){
     var section by remember{mutableStateOf("main")}
     var oldPassword by remember{mutableStateOf("")}
     var newPassword by remember{mutableStateOf("")}
     var confirmPassword by remember{mutableStateOf("")}
     var passwordMessage by remember{mutableStateOf("")}
-
     ModalBottomSheet(onDismissRequest=onClose,modifier=Modifier.fillMaxHeight(.95f)){
-        LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-            when(section){
-                "terms" -> {
-                    item{Text(tr(language,"Terma & Syarat","Terms & Conditions"),style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=KadaiPurpleDark)}
-                    item{Text(tr(language,"Dengan menggunakan KadaiKu, pengguna bersetuju memberikan maklumat yang benar, menggunakan platform secara bertanggungjawab, menghormati seller dan buyer lain, dan tidak menjual barang yang menyalahi undang-undang. Harga, stok, delivery dan transaksi adalah tanggungjawab pihak yang terlibat. KadaiKu boleh mengemaskini terma ini apabila perlu.","By using KadaiKu, users agree to provide accurate information, use the platform responsibly, respect other buyers and sellers, and not list unlawful items. Prices, stock, delivery and transactions remain the responsibility of the parties involved. KadaiKu may update these terms when necessary."))}
-                    item{Button({section="main"},Modifier.fillMaxWidth()){Text(tr(language,"Kembali","Back"))}}
-                }
-                "help" -> {
-                    item{Text(tr(language,"Pusat Bantuan","Help Center"),style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=KadaiPurpleDark)}
-                    item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(14.dp)){Text(tr(language,"Pesanan & Delivery","Orders & Delivery"),fontWeight=FontWeight.Bold);Text(tr(language,"Gunakan tab Orders untuk melihat status seller, runner dan history pembelian.","Use the Orders tab to view seller status, runner tracking and purchase history."))}}}
-                    item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(14.dp)){Text(tr(language,"Akaun","Account"),fontWeight=FontWeight.Bold);Text(tr(language,"Untuk bantuan akaun atau masalah login, hubungi KadaiKu Customer Service.","For account or login assistance, contact KadaiKu Customer Service."));Text("✉️ Kadaiku@gmail.com",color=KadaiPurple,fontWeight=FontWeight.Bold)}}}
-                    item{Button({section="main"},Modifier.fillMaxWidth()){Text(tr(language,"Kembali","Back"))}}
-                }
-                "password" -> {
-                    item{Text(tr(language,"Tukar Password","Change Password"),style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=KadaiPurpleDark)}
-                    item{Text(tr(language,"Akaun","Account")+": ${user.username}")}
-                    item{OutlinedTextField(oldPassword,{oldPassword=it},label={Text(tr(language,"Password sekarang","Current password"))},modifier=Modifier.fillMaxWidth(),visualTransformation=PasswordVisualTransformation())}
-                    item{OutlinedTextField(newPassword,{newPassword=it},label={Text(tr(language,"Password baru","New password"))},modifier=Modifier.fillMaxWidth(),visualTransformation=PasswordVisualTransformation(),supportingText={Text(tr(language,"Minimum 8 karakter","Minimum 8 characters"))})}
-                    item{OutlinedTextField(confirmPassword,{confirmPassword=it},label={Text(tr(language,"Sahkan password baru","Confirm new password"))},modifier=Modifier.fillMaxWidth(),visualTransformation=PasswordVisualTransformation())}
-                    if(passwordMessage.isNotBlank()) item{Text(passwordMessage,color=if(passwordMessage.startsWith("✅"))Color(0xFF15803D) else MaterialTheme.colorScheme.error)}
-                    item{Button({passwordMessage=when{newPassword.length<8->"❌ "+tr(language,"Password baru mesti sekurang-kurangnya 8 karakter","New password must be at least 8 characters");newPassword!=confirmPassword->"❌ "+tr(language,"Password baru tidak sama","New passwords do not match");onChangePassword(oldPassword,newPassword)->"✅ "+tr(language,"Password berjaya ditukar","Password changed successfully");else->"❌ "+tr(language,"Password sekarang tidak betul","Current password is incorrect")}},Modifier.fillMaxWidth()){Text(tr(language,"Tukar Password","Change Password"))}}
-                    item{OutlinedButton({section="main"},Modifier.fillMaxWidth()){Text(tr(language,"Kembali","Back"))}}
-                }
-                else -> {
-                    item{Text("⚙️ ${tr(language,"Tetapan","Settings")}",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=KadaiPurpleDark)}
-                    item{Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=KadaiPurpleSoft)){Column(Modifier.padding(14.dp)){LanguageChooser(language,onLanguage)}}}
-                    item{Card(Modifier.fillMaxWidth()){Row(Modifier.fillMaxWidth().padding(14.dp),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(tr(language,"Push Notification","Push Notifications"),fontWeight=FontWeight.Bold);Text(tr(language,"Terima update order penting","Receive important order updates"),style=MaterialTheme.typography.bodySmall,color=Color.Gray)};Switch(pushNotifications,onPushNotifications)}}
-                    item{Card(Modifier.fillMaxWidth().clickable{section="terms"}){Row(Modifier.padding(16.dp)){Text("📄 ");Text(tr(language,"Terma & Syarat","Terms & Conditions"),fontWeight=FontWeight.Bold)}}}
-                    item{Card(Modifier.fillMaxWidth().clickable{section="help"}){Row(Modifier.padding(16.dp)){Text("❓ ");Text(tr(language,"Pusat Bantuan","Help Center"),fontWeight=FontWeight.Bold)}}}
-                    item{Card(Modifier.fillMaxWidth().clickable{section="password"}){Row(Modifier.padding(16.dp)){Text("🔐 ");Text(tr(language,"Tukar Password","Change Password"),fontWeight=FontWeight.Bold)}}}
-                    item{OutlinedButton(onClose,Modifier.fillMaxWidth()){Text(tr(language,"Tutup","Close"))}}
-                }
+        when(section){
+            "terms" -> LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+                item{Text(tr(language,"Terma & Syarat","Terms & Conditions"),style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=KadaiPurpleDark)}
+                item{Text(tr(language,"Dengan menggunakan KadaiKu, pengguna bersetuju memberikan maklumat yang benar, menggunakan platform secara bertanggungjawab, menghormati seller dan buyer lain, dan tidak menjual barang yang menyalahi undang-undang. Harga, stok, delivery dan transaksi adalah tanggungjawab pihak yang terlibat. KadaiKu boleh mengemaskini terma ini apabila perlu.","By using KadaiKu, users agree to provide accurate information, use the platform responsibly, respect other buyers and sellers, and not list unlawful items. Prices, stock, delivery and transactions remain the responsibility of the parties involved. KadaiKu may update these terms when necessary."))}
+                item{Button({section="main"},Modifier.fillMaxWidth()){Text(tr(language,"Kembali","Back"))}}
+            }
+            "help" -> LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+                item{Text(tr(language,"Pusat Bantuan","Help Center"),style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=KadaiPurpleDark)}
+                item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(14.dp)){Text(tr(language,"Pesanan & Delivery","Orders & Delivery"),fontWeight=FontWeight.Bold);Text(tr(language,"Gunakan tab Orders untuk melihat status seller, runner dan history pembelian.","Use the Orders tab to view seller status, runner tracking and purchase history."))}}}
+                item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(14.dp)){Text(tr(language,"Akaun","Account"),fontWeight=FontWeight.Bold);Text(tr(language,"Untuk bantuan akaun atau masalah login, hubungi KadaiKu Customer Service.","For account or login assistance, contact KadaiKu Customer Service."));Text("✉️ Kadaiku@gmail.com",color=KadaiPurple,fontWeight=FontWeight.Bold)}}}
+                item{Button({section="main"},Modifier.fillMaxWidth()){Text(tr(language,"Kembali","Back"))}}
+            }
+            "password" -> LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+                item{Text(tr(language,"Tukar Password","Change Password"),style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=KadaiPurpleDark)}
+                item{Text(tr(language,"Akaun","Account")+": ${user.username}")}
+                item{OutlinedTextField(oldPassword,{oldPassword=it},label={Text(tr(language,"Password sekarang","Current password"))},modifier=Modifier.fillMaxWidth(),visualTransformation=PasswordVisualTransformation())}
+                item{OutlinedTextField(newPassword,{newPassword=it},label={Text(tr(language,"Password baru","New password"))},modifier=Modifier.fillMaxWidth(),visualTransformation=PasswordVisualTransformation(),supportingText={Text(tr(language,"Minimum 8 karakter","Minimum 8 characters"))})}
+                item{OutlinedTextField(confirmPassword,{confirmPassword=it},label={Text(tr(language,"Sahkan password baru","Confirm new password"))},modifier=Modifier.fillMaxWidth(),visualTransformation=PasswordVisualTransformation())}
+                if(passwordMessage.isNotBlank()) item{Text(passwordMessage,color=if(passwordMessage.startsWith("✅"))Color(0xFF15803D) else MaterialTheme.colorScheme.error)}
+                item{Button({passwordMessage=when{newPassword.length<8->"❌ "+tr(language,"Password baru mesti sekurang-kurangnya 8 karakter","New password must be at least 8 characters");newPassword!=confirmPassword->"❌ "+tr(language,"Password baru tidak sama","New passwords do not match");onChangePassword(oldPassword,newPassword)->"✅ "+tr(language,"Password berjaya ditukar","Password changed successfully");else->"❌ "+tr(language,"Password sekarang tidak betul","Current password is incorrect")}},Modifier.fillMaxWidth()){Text(tr(language,"Tukar Password","Change Password"))}}
+                item{OutlinedButton({section="main"},Modifier.fillMaxWidth()){Text(tr(language,"Kembali","Back"))}}
+            }
+            else -> LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+                item{Text("⚙️ ${tr(language,"Tetapan","Settings")}",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=KadaiPurpleDark)}
+                item{Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=KadaiPurpleSoft)){Column(Modifier.padding(14.dp)){LanguageChooser(language,onLanguage)}}}
+                item{Card(Modifier.fillMaxWidth()){Row(Modifier.fillMaxWidth().padding(14.dp),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(tr(language,"Push Notification","Push Notifications"),fontWeight=FontWeight.Bold);Text(tr(language,"Terima update order penting","Receive important order updates"),style=MaterialTheme.typography.bodySmall,color=Color.Gray)};Switch(pushNotifications,onPushNotifications)}}}
+                item{Card(Modifier.fillMaxWidth().clickable{section="terms"}){Row(Modifier.padding(16.dp)){Text("📄 ");Text(tr(language,"Terma & Syarat","Terms & Conditions"),fontWeight=FontWeight.Bold)}}}
+                item{Card(Modifier.fillMaxWidth().clickable{section="help"}){Row(Modifier.padding(16.dp)){Text("❓ ");Text(tr(language,"Pusat Bantuan","Help Center"),fontWeight=FontWeight.Bold)}}}
+                item{Card(Modifier.fillMaxWidth().clickable{section="password"}){Row(Modifier.padding(16.dp)){Text("🔐 ");Text(tr(language,"Tukar Password","Change Password"),fontWeight=FontWeight.Bold)}}}
+                item{OutlinedButton(onClose,Modifier.fillMaxWidth()){Text(tr(language,"Tutup","Close"))}}
             }
         }
     }
