@@ -65,10 +65,12 @@ class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:
     val logoScale=remember{Animatable(.65f)}
     val titleScale=remember{Animatable(.9f)}
     LaunchedEffect(Unit){
-        slideX.animateTo(0f,tween(550))
-        titleScale.animateTo(1f,tween(250))
-        delay(250)
-        logoScale.animateTo(1.35f,tween(420))
+        slideX.animateTo(0f,tween(500))
+        titleScale.animateTo(1f,tween(220))
+        delay(180)
+        logoScale.animateTo(1.15f,tween(260))
+        delay(120)
+        logoScale.animateTo(16f,tween(520))
     }
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(KadaiPurpleDark,KadaiPurple,Color(0xFFA855F7)))),contentAlignment=Alignment.Center){
         Column(horizontalAlignment=Alignment.CenterHorizontally){
@@ -78,6 +80,17 @@ class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:
             Spacer(Modifier.height(20.dp))
             Text("Brunei 🇧🇳",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold,color=Color.White)
             Text("Local marketplace",color=Color.White.copy(alpha=.88f))
+        }
+    }
+}
+
+@Composable fun CartBadgeIcon(count:Int){
+    Box(Modifier.size(28.dp),contentAlignment=Alignment.Center){
+        Text("🛒")
+        if(count>0){
+            Box(Modifier.align(Alignment.TopEnd).size(16.dp).clip(CircleShape).background(Color.Red),contentAlignment=Alignment.Center){
+                Text(if(count>99)"99+" else count.toString(),color=Color.White,style=MaterialTheme.typography.labelSmall,fontWeight=FontWeight.Bold)
+            }
         }
     }
 }
@@ -93,28 +106,26 @@ class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:
     var accounts by remember{mutableStateOf(listOf<UserAccount>())};var currentUser by remember{mutableStateOf<UserAccount?>(null)};var showRegister by remember{mutableStateOf(false)};var tab by remember{mutableIntStateOf(0)}
     var products by remember{mutableStateOf(listOf(Product(name="Kek Coklat Premium",price=15.0,shop="Dapur Aisyah",category="Makanan",area="Gadong",image="🍰",sellerPhone="+673 7XX XXXX",sellerAddress="Gadong, Brunei-Muara",sellerId="sample-aisyah",stock=12),Product(name="Perfume Oud",price=20.0,shop="Brunei Fragrance",category="Beauty",area="Kiulap",image="🧴",sellerPhone="+673 8XX XXXX",sellerAddress="Kiulap, Brunei-Muara",sellerId="sample-fragrance",stock=8),Product(name="Baju Melayu",price=35.0,shop="Kedai Kita",category="Fashion",area="Bandar",image="👕",sellerPhone="+673 7XX XXXX",sellerAddress="Bandar Seri Begawan",sellerId="sample-kita",stock=10),Product(name="Frozen Food Combo",price=12.0,shop="Mama's Frozen",category="Makanan",area="Tutong",image="🥟",sellerPhone="+673 8XX XXXX",sellerAddress="Tutong, Brunei",sellerId="sample-mama",stock=15)))}
     var cart by remember{mutableStateOf(listOf<CartLine>())};var orders by remember{mutableStateOf(listOf<Order>())};var notices by remember{mutableStateOf(listOf<AppNotice>())};var search by remember{mutableStateOf("")};var selectedProduct by remember{mutableStateOf<Product?>(null)};var selectedSellerId by remember{mutableStateOf<String?>(null)};var historyOrder by remember{mutableStateOf<Order?>(null)};var showSeller by remember{mutableStateOf(false)};var showAdd by remember{mutableStateOf(false)};var showSupport by remember{mutableStateOf(false)};var supportX by remember{mutableStateOf(0f)};var supportY by remember{mutableStateOf(0f)}
-    LaunchedEffect(Unit){delay(1550);splash=false};if(splash){SplashScreen();return}
+    LaunchedEffect(Unit){delay(1650);splash=false};if(splash){SplashScreen();return}
     if(currentUser==null){
         if(showRegister) RegisterScreen(language,{language=it},{showRegister=false}){u,p,r,s,ph,loc->val a=UserAccount(username=u,password=p,role=r,shop=s,phone=ph,address=loc);accounts=accounts+a;currentUser=a;showRegister=false}
         else LoginScreen(language,{language=it},if(rememberLogin)rememberedUsername else "",if(rememberLogin)rememberedPassword else "",rememberLogin,{u,p,rememberMe->
             accounts.firstOrNull{it.username.equals(u,true)&&it.password==p}?.let{
                 currentUser=it
                 rememberLogin=rememberMe
-                if(rememberMe){
-                    rememberedUsername=u;rememberedPassword=p
-                    prefs.edit().putBoolean("remember",true).putString("username",u).putString("password",p).apply()
-                }else{
-                    rememberedUsername="";rememberedPassword=""
-                    prefs.edit().clear().apply()
-                }
+                if(rememberMe){rememberedUsername=u;rememberedPassword=p;prefs.edit().putBoolean("remember",true).putString("username",u).putString("password",p).apply()}else{rememberedUsername="";rememberedPassword="";prefs.edit().clear().apply()}
             }
         },{showRegister=true})
         return
     }
-    val user=currentUser!!;val sellerProfile=SellerProfile(user.shop.ifBlank{tr(language,"Kedai Saya","My Shop")},user.phone,user.address);val buyerOrders=orders.filter{it.buyerId==user.id};val visibleProducts=products.filter{it.stock>0}.filter{search.isBlank()||it.name.contains(search,true)||it.shop.contains(search,true)||it.category.contains(search,true)}
+    val user=currentUser!!;val sellerProfile=SellerProfile(user.shop.ifBlank{tr(language,"Kedai Saya","My Shop")},user.phone,user.address);val buyerOrders=orders.filter{it.buyerId==user.id};val visibleProducts=products.filter{it.stock>0}.filter{search.isBlank()||it.name.contains(search,true)||it.shop.contains(search,true)||it.category.contains(search,true)};val cartCount=cart.sumOf{it.qty}
     Box(Modifier.fillMaxSize()){
-        Scaffold(containerColor=Color(0xFFFCFAFF),topBar={CenterAlignedTopAppBar(title={Text("KadaiKu 🇧🇳",fontWeight=FontWeight.ExtraBold,color=KadaiPurpleDark)})},bottomBar={NavigationBar{listOf(tr(language,"Home","Home"),tr(language,"Cari","Search"),tr(language,"Troli","Cart"),tr(language,"Orders","Orders"),tr(language,"Profil","Profile")).forEachIndexed{i,l->NavigationBarItem(selected=tab==i,onClick={tab=i},icon={},label={Text(l)})}}}){pad->when(tab){0->Home(visibleProducts,search,{search=it},{if(user.role=="Seller")showSeller=true},{cart=addCart(cart,it)},{selectedProduct=it},{selectedSellerId=it.sellerId},Modifier.padding(pad),user.role=="Seller",language);1->SearchPage(visibleProducts,search,{search=it},{cart=addCart(cart,it)},{selectedProduct=it},{selectedSellerId=it.sellerId},Modifier.padding(pad),language);2->CartPage(cart,{cart=removeOne(cart,it)},{cart=addCart(cart,it)},{cart=removeItem(cart,it)},{delivery,district,address,location,fee,payment,total->if(cart.isNotEmpty()){val runner=if(delivery=="Pickup")"" to "" else assignMarketplaceRunner();val order=Order(buyerId=user.id,lines=cart.map{it.copy()},delivery=delivery,district=district,deliveryAddress=address,deliveryLocation=location,deliveryFee=fee,paymentMethod=payment,total=total,runnerName=runner.first,runnerPhone=runner.second);orders=orders+order;products=products.map{p->val q=cart.firstOrNull{it.product.id==p.id}?.qty?:0;if(q>0)p.copy(stock=(p.stock-q).coerceAtLeast(0))else p};if(pushNotifications)order.lines.groupBy{it.product.sellerId}.forEach{(sellerId,lines)->if(!sellerId.startsWith("sample-"))notices=notices+AppNotice(target=sellerId,title="New order #${order.id}",message="${lines.sumOf{it.qty}} item(s) ordered")};cart=emptyList();tab=3}},Modifier.padding(pad),language);3->OrdersPage(buyerOrders,{id->orders=orders.map{if(it.id==id&&it.deliveredAt==null)it.copy(deliveredAt=System.currentTimeMillis())else it}},{historyOrder=it},Modifier.padding(pad),language);else->ProfilePage(user,if(pushNotifications)notices.filter{it.target==user.id}else emptyList(),{if(user.role=="Seller")showSeller=true},{currentUser=null;cart=emptyList();tab=0},Modifier.padding(pad),language,{language=it},pushNotifications,{pushNotifications=it})}}
-        FloatingActionButton(onClick={showSupport=true},containerColor=KadaiPurple,contentColor=Color.White,shape=CircleShape,modifier=Modifier.align(Alignment.BottomEnd).padding(16.dp).offset{IntOffset(supportX.roundToInt(),supportY.roundToInt())}.pointerInput(Unit){detectDragGestures{c,d->c.consume();supportX+=d.x;supportY+=d.y}}){Text("💬")}
+        Scaffold(containerColor=Color(0xFFFCFAFF),topBar={CenterAlignedTopAppBar(title={Text("KadaiKu 🇧🇳",fontWeight=FontWeight.ExtraBold,color=KadaiPurpleDark)})},bottomBar={NavigationBar{
+            listOf(tr(language,"Home","Home"),tr(language,"Cari","Search"),tr(language,"Troli","Cart"),tr(language,"Orders","Orders"),tr(language,"Profil","Profile")).forEachIndexed{i,l->
+                NavigationBarItem(selected=tab==i,onClick={tab=i},icon={if(i==2)CartBadgeIcon(cartCount) else Text(when(i){0->"🏠";1->"🔎";3->"📦";else->"👤"})},label={Text(l)})
+            }
+        }}){pad->when(tab){0->Home(visibleProducts,search,{search=it},{if(user.role=="Seller")showSeller=true},{cart=addCart(cart,it)},{selectedProduct=it},{selectedSellerId=it.sellerId},Modifier.padding(pad),user.role=="Seller",language);1->SearchPage(visibleProducts,search,{search=it},{cart=addCart(cart,it)},{selectedProduct=it},{selectedSellerId=it.sellerId},Modifier.padding(pad),language);2->CartPage(cart,{cart=removeOne(cart,it)},{cart=addCart(cart,it)},{cart=removeItem(cart,it)},{delivery,district,address,location,fee,payment,total->if(cart.isNotEmpty()){val runner=if(delivery=="Pickup")"" to "" else assignMarketplaceRunner();val order=Order(buyerId=user.id,lines=cart.map{it.copy()},delivery=delivery,district=district,deliveryAddress=address,deliveryLocation=location,deliveryFee=fee,paymentMethod=payment,total=total,runnerName=runner.first,runnerPhone=runner.second);orders=orders+order;products=products.map{p->val q=cart.firstOrNull{it.product.id==p.id}?.qty?:0;if(q>0)p.copy(stock=(p.stock-q).coerceAtLeast(0))else p};if(pushNotifications)order.lines.groupBy{it.product.sellerId}.forEach{(sellerId,lines)->if(!sellerId.startsWith("sample-"))notices=notices+AppNotice(target=sellerId,title="New order #${order.id}",message="${lines.sumOf{it.qty}} item(s) ordered")};cart=emptyList();tab=3}},Modifier.padding(pad),language);3->OrdersPage(buyerOrders,{id->orders=orders.map{if(it.id==id&&it.deliveredAt==null)it.copy(deliveredAt=System.currentTimeMillis())else it}},{historyOrder=it},Modifier.padding(pad),language);else->ProfilePage(user,if(pushNotifications)notices.filter{it.target==user.id}else emptyList(),{if(user.role=="Seller")showSeller=true},{currentUser=null;cart=emptyList();tab=0},Modifier.padding(pad),language,{language=it},pushNotifications,{pushNotifications=it})}}
+        FloatingActionButton(onClick={showSupport=true},containerColor=Color(0xFF20C56B),contentColor=Color.White,shape=CircleShape,modifier=Modifier.align(Alignment.BottomEnd).padding(16.dp).offset{IntOffset(supportX.roundToInt(),supportY.roundToInt())}.pointerInput(Unit){detectDragGestures{c,d->c.consume();supportX+=d.x;supportY+=d.y}}){Text("💬")}
     }
     selectedProduct?.let{p->ProductDetailSheet(p,{selectedProduct=null},{cart=addCart(cart,p)},{selectedProduct=null;selectedSellerId=p.sellerId},language)}
     selectedSellerId?.let{id->products.firstOrNull{it.sellerId==id}?.let{a->SellerStoreSheet(id,products,a,{selectedSellerId=null},{cart=addCart(cart,it)},{selectedProduct=it;selectedSellerId=null},language)}}
